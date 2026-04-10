@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-10T17:01:54.545074+00:00Z",
+  "timestamp": "2026-04-10T20:03:07.539847+00:00Z",
   "promoted": true,
   "promoted_candidate": "cand-0001",
   "reason": "Candidate cand-0001 improves over baseline: composite 0.9133 \u2192 0.9450 (+0.0317), DoD/task 11.3 \u2192 14.5",

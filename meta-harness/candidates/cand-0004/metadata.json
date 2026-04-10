@@ -1,0 +1,21 @@
+{
+  "id": "cand-0004",
+  "name": "eval-only",
+  "parent": "cand-0001",
+  "iteration": 2,
+  "created": "2026-04-10T17:25:00Z",
+  "hypothesis": "Remove adversary entirely. Merge challenge responsibility into a strengthened evaluator with structured verification checklist and edge-case probing. If quality holds, adversary phase is pure overhead. Saves ~12 min and one agent call per cycle.",
+  "changes": {
+    "planner": "Unchanged from cand-0001. Coverage matrix + 4 DoD/feature.",
+    "generator": "Unchanged from cand-0001.",
+    "adversary": "REMOVED. No adversary phase.",
+    "evaluator": "Expanded: now does edge-case probing (adversary's job) + zero-tolerance eval in one pass. Structured output with verification table + edge-case audit.",
+    "skill": "3-phase workflow: PLAN → BUILD → EVAL. No challenge phase. Evaluator timeout increased to 25 min."
+  },
+  "expected_metrics": {
+    "pass_rate": 1.0,
+    "avg_dod_per_task": "14-16",
+    "avg_tests_per_task": "18-22",
+    "token_cost_vs_parent": "~70%"
+  }
+}

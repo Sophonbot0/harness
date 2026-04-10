@@ -1,0 +1,21 @@
+{
+  "id": "cand-0003",
+  "name": "tdd-lean",
+  "parent": "cand-0001",
+  "iteration": 2,
+  "created": "2026-04-10T17:25:00Z",
+  "hypothesis": "TDD-style generator (tests before implementation) + further adversary reduction (6 challenges, 8 min). Tests-first should catch edge cases earlier, reducing adversary's value. If DoD holds at ≥14/task with fewer adversary minutes, we confirm adversary is over-contributing.",
+  "changes": {
+    "planner": "Added DoD cap of 3 per feature (down from 4). Kept coverage matrix and requirement extraction.",
+    "generator": "Rewritten for TDD: write failing tests for each DoD criterion FIRST, then implement until green. Feature-by-feature.",
+    "adversary": "Reduced from 8→6 challenges, 12→8 min. Kept reproduction commands. Removed demands-for-evidence (evaluator handles this).",
+    "evaluator": "Unchanged from cand-0001. Zero-tolerance + progress delta.",
+    "skill": "Reduced adversary timeout 12→8 min. All else same as cand-0001."
+  },
+  "expected_metrics": {
+    "pass_rate": 1.0,
+    "avg_dod_per_task": "13-16",
+    "avg_tests_per_task": "20-25",
+    "token_cost_vs_parent": "~85%"
+  }
+}
