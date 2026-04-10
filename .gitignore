@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.DS_Store
+meta-harness/candidates/
+meta-harness/runs/
+meta-harness/active/
+meta-harness/frontier.json
+meta-harness/seeds/*/evaluation/
+meta-harness/fixtures/*/run-artifacts/

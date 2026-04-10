@@ -1,0 +1,128 @@
+{
+  "description": "Search set — 12 benchmark tasks for harness evaluation. Proposer sees these results.",
+  "version": "1.0",
+  "tasks": [
+    {
+      "id": "search-001",
+      "name": "Simple Bug Fix",
+      "category": "bug_fix",
+      "difficulty": "easy",
+      "description": "Fix a broken sort function that crashes on empty input and doesn't handle duplicates correctly.",
+      "scaffold": "fixtures/search-001-sort-bug/",
+      "expected_dod_count": 4,
+      "expected_features": 1
+    },
+    {
+      "id": "search-002",
+      "name": "Add Input Validation",
+      "category": "feature",
+      "difficulty": "easy",
+      "description": "Add input validation to an existing REST API endpoint. Validate email format, required fields, string length limits. Return proper 400 errors with descriptive messages.",
+      "scaffold": "fixtures/search-002-validation/",
+      "expected_dod_count": 6,
+      "expected_features": 2
+    },
+    {
+      "id": "search-003",
+      "name": "Refactor to Strategy Pattern",
+      "category": "refactor",
+      "difficulty": "medium",
+      "description": "Refactor a payment processing module from a giant if/else chain to the Strategy pattern. Support credit card, PayPal, and bank transfer. Maintain backwards compatibility.",
+      "scaffold": "fixtures/search-003-strategy-refactor/",
+      "expected_dod_count": 8,
+      "expected_features": 3
+    },
+    {
+      "id": "search-004",
+      "name": "CLI Tool with Subcommands",
+      "category": "feature",
+      "difficulty": "medium",
+      "description": "Build a CLI tool with 3 subcommands: 'init' (create config file), 'run' (execute pipeline), 'status' (show current state). Include --help, --verbose flags, and proper exit codes.",
+      "scaffold": "fixtures/search-004-cli-tool/",
+      "expected_dod_count": 10,
+      "expected_features": 4
+    },
+    {
+      "id": "search-005",
+      "name": "Database Migration Script",
+      "category": "feature",
+      "difficulty": "medium",
+      "description": "Write a database migration that adds a 'tags' column (JSON array), migrates existing 'category' data into tags, and provides a rollback script. Must handle tables with 100K+ rows.",
+      "scaffold": "fixtures/search-005-db-migration/",
+      "expected_dod_count": 7,
+      "expected_features": 3
+    },
+    {
+      "id": "search-006",
+      "name": "Rate Limiter Middleware",
+      "category": "feature",
+      "difficulty": "medium",
+      "description": "Implement a sliding-window rate limiter middleware. Support per-IP and per-API-key limits. Return 429 with Retry-After header. Include bypass for health check endpoints.",
+      "scaffold": "fixtures/search-006-rate-limiter/",
+      "expected_dod_count": 8,
+      "expected_features": 3
+    },
+    {
+      "id": "search-007",
+      "name": "Multi-File Feature with Tests",
+      "category": "feature",
+      "difficulty": "hard",
+      "description": "Add a notification system: create NotificationService, EmailProvider, WebhookProvider, a notification queue, and a retry mechanism. Include unit tests for each component and an integration test.",
+      "scaffold": "fixtures/search-007-notifications/",
+      "expected_dod_count": 15,
+      "expected_features": 5
+    },
+    {
+      "id": "search-008",
+      "name": "Ambiguous Request",
+      "category": "ambiguous",
+      "difficulty": "medium",
+      "description": "Make the dashboard faster.",
+      "scaffold": "fixtures/search-008-dashboard/",
+      "expected_dod_count": 0,
+      "expected_features": 0,
+      "notes": "Intentionally vague. Tests planner's ability to ask questions or make reasonable assumptions."
+    },
+    {
+      "id": "search-009",
+      "name": "Error Handling Overhaul",
+      "category": "refactor",
+      "difficulty": "medium",
+      "description": "Replace all bare try/except blocks with proper error handling: custom exception classes, structured error responses, error logging with context, and a global error handler.",
+      "scaffold": "fixtures/search-009-error-handling/",
+      "expected_dod_count": 9,
+      "expected_features": 4
+    },
+    {
+      "id": "search-010",
+      "name": "Configuration System",
+      "category": "feature",
+      "difficulty": "medium",
+      "description": "Build a configuration system that loads from: defaults → config file (YAML) → environment variables → CLI flags. Support nested keys, type coercion, and validation with helpful error messages.",
+      "scaffold": "fixtures/search-010-config-system/",
+      "expected_dod_count": 10,
+      "expected_features": 4
+    },
+    {
+      "id": "search-011",
+      "name": "Sprint-Sized Project",
+      "category": "project",
+      "difficulty": "hard",
+      "description": "Build a URL shortener service: URL creation API, redirect handler, click analytics tracking, rate limiting, admin dashboard (list all URLs, see click counts), and database persistence. Must have tests.",
+      "scaffold": "fixtures/search-011-url-shortener/",
+      "expected_dod_count": 25,
+      "expected_features": 8,
+      "notes": "Tests sprint detection and multi-sprint execution."
+    },
+    {
+      "id": "search-012",
+      "name": "Existing Codebase Bug Hunt",
+      "category": "bug_fix",
+      "difficulty": "hard",
+      "description": "The test suite has 3 failing tests. Fix all 3 bugs without breaking anything else. The bugs are in different modules and have different root causes (off-by-one, race condition, type coercion).",
+      "scaffold": "fixtures/search-012-bug-hunt/",
+      "expected_dod_count": 6,
+      "expected_features": 3
+    }
+  ]
+}

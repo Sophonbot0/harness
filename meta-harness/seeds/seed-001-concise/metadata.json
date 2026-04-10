@@ -1,0 +1,9 @@
+{
+  "id": "seed-001-concise",
+  "name": "Concise",
+  "description": "Radically shorter prompts. Same 4-agent architecture but each prompt is ~50% of baseline length. Hypothesis: shorter prompts reduce noise, let the model use its own judgment more.",
+  "hypothesis": "Shorter, less prescriptive prompts may improve quality by reducing prompt-following overhead and letting the model apply its own coding expertise.",
+  "created_at": "2026-04-10T12:00:00Z",
+  "source": "human-authored variant",
+  "parent": "seed-000-baseline"
+}

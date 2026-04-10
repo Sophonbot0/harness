@@ -1,0 +1,9 @@
+{
+  "id": "seed-000-baseline",
+  "name": "Baseline",
+  "description": "Exact copy of the current production harness. 4-agent pipeline: Planner → Generator → Adversary → Evaluator. Sprint support, intelligent loop control, progress bar integration.",
+  "hypothesis": "Current hand-engineered harness. All other candidates are compared against this.",
+  "created_at": "2026-04-10T12:00:00Z",
+  "source": "production",
+  "parent": null
+}

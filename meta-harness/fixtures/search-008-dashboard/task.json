@@ -1,0 +1,6 @@
+{
+  "task_description": "",
+  "verify_command": "cd {project_dir} && python3 -m pytest -v",
+  "language": "python",
+  "scaffold_type": "minimal"
+}

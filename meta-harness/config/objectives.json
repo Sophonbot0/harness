@@ -1,0 +1,69 @@
+{
+  "objectives": [
+    {
+      "id": "pass_rate",
+      "name": "Task Pass Rate",
+      "description": "Fraction of benchmark tasks where all DoD items pass",
+      "direction": "maximize",
+      "range": [0.0, 1.0],
+      "primary": true,
+      "weight": 0.4
+    },
+    {
+      "id": "eval_grade",
+      "name": "Average Evaluation Grade",
+      "description": "Normalized grade from evaluator (A=1.0, B=0.8, C=0.6, D=0.4, F=0.0)",
+      "direction": "maximize",
+      "range": [0.0, 1.0],
+      "primary": true,
+      "weight": 0.3
+    },
+    {
+      "id": "avg_rounds",
+      "name": "Average Rounds to Pass",
+      "description": "Mean number of BUILD→EVAL rounds needed",
+      "direction": "minimize",
+      "range": [1.0, 5.0],
+      "primary": false,
+      "weight": 0.1
+    },
+    {
+      "id": "avg_time_seconds",
+      "name": "Average Time per Task",
+      "description": "Mean wall-clock seconds per task",
+      "direction": "minimize",
+      "range": [60, 3600],
+      "primary": false,
+      "weight": 0.1
+    },
+    {
+      "id": "stuck_rate",
+      "name": "Stuck/Stall Rate",
+      "description": "Fraction of tasks where the harness got stuck or timed out",
+      "direction": "minimize",
+      "range": [0.0, 1.0],
+      "primary": false,
+      "weight": 0.1
+    },
+    {
+      "id": "token_cost",
+      "name": "Average Token Cost",
+      "description": "Mean total tokens (input+output) across all agents per task",
+      "direction": "minimize",
+      "range": [1000, 500000],
+      "primary": false,
+      "weight": 0.0
+    },
+    {
+      "id": "regression_rate",
+      "name": "Regression Rate",
+      "description": "Fraction of tasks that passed with baseline but fail with this candidate",
+      "direction": "minimize",
+      "range": [0.0, 1.0],
+      "primary": false,
+      "weight": 0.0
+    }
+  ],
+  "pareto_dimensions": ["pass_rate", "avg_time_seconds", "token_cost"],
+  "composite_score": "0.4 * pass_rate + 0.3 * eval_grade + 0.1 * (1 - norm(avg_rounds)) + 0.1 * (1 - norm(avg_time_seconds)) + 0.1 * (1 - stuck_rate)"
+}

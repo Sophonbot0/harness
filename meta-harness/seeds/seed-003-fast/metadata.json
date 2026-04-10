@@ -1,0 +1,9 @@
+{
+  "id": "seed-003-fast",
+  "name": "Fast",
+  "description": "Speed-optimized variant. No questions phase, batch commits, shorter adversary/eval, no sprint support, max 2 rounds. Hypothesis: for most tasks, fast iteration beats thoroughness.",
+  "hypothesis": "Shorter timeouts, fewer challenges, and batch-style generation will reduce total time-to-delivery while maintaining acceptable quality for typical tasks.",
+  "created_at": "2026-04-10T12:00:00Z",
+  "source": "human-authored variant",
+  "parent": "seed-000-baseline"
+}

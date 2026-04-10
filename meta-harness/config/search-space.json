@@ -1,0 +1,28 @@
+{
+  "description": "Defines which files the proposer can modify, read, or must not touch",
+  "editable": [
+    "SKILL.md",
+    "prompts/planner-system.md",
+    "prompts/generator-system.md",
+    "prompts/adversary-system.md",
+    "prompts/evaluator-system.md",
+    "references/grading-criteria.md",
+    "templates/plan-template.md",
+    "templates/challenge-report-template.md",
+    "templates/eval-report-template.md",
+    "meta/policy.json"
+  ],
+  "read_only": [
+    "meta-harness/**",
+    ".git/**",
+    "analysis-sprint-architecture.md",
+    "plan-long-running.md",
+    "plan-sprints.md",
+    "plan.md"
+  ],
+  "forbidden": [
+    "runner/**",
+    "run_meta_harness.py"
+  ],
+  "notes": "The proposer can create new files within the editable directories (e.g., prompts/custom-*.md, meta/*.json) but cannot modify the evolution infrastructure itself."
+}

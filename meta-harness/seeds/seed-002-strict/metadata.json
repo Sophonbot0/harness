@@ -1,0 +1,9 @@
+{
+  "id": "seed-002-strict",
+  "name": "Strict",
+  "description": "Aggressive adversary + zero-tolerance evaluator. Longer challenge phase (20min, 15 issues). Evaluator has no partial credit. Hypothesis: stricter quality gates catch more issues at the cost of more rounds.",
+  "hypothesis": "More aggressive adversarial testing and zero-tolerance evaluation will reduce post-delivery bugs, even if it increases average rounds to completion.",
+  "created_at": "2026-04-10T12:00:00Z",
+  "source": "human-authored variant",
+  "parent": "seed-000-baseline"
+}

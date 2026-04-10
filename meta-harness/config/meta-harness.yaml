@@ -1,0 +1,68 @@
+# Meta-Harness Configuration
+# Based on Khattab & Finn (2026) "Meta-Harness: End-to-End Optimization of Model Harnesses"
+
+# Search parameters
+iterations: 10                    # Number of proposer iterations (paper used 20-40)
+candidates_per_iteration: 2       # k candidates per iteration (paper used 2-3)
+max_eval_timeout_minutes: 30      # Max time per task evaluation
+max_proposer_timeout_minutes: 45  # Max time for proposer per iteration
+
+# Search space — files the proposer can modify
+search_space:
+  editable:
+    - SKILL.md
+    - prompts/planner-system.md
+    - prompts/generator-system.md
+    - prompts/adversary-system.md
+    - prompts/evaluator-system.md
+    - references/grading-criteria.md
+    - templates/plan-template.md
+    - templates/challenge-report-template.md
+    - templates/eval-report-template.md
+    - meta/policy.json              # Optional policy knobs
+  read_only:
+    - meta-harness/**               # Evolution infra itself
+    - .git/**
+  forbidden:
+    - "*.py"                        # No modifying runner code
+    - run_meta_harness.py
+
+# Models
+proposer_model: github-copilot/claude-opus-4.6
+eval_base_model: github-copilot/claude-sonnet-4.6    # Fixed model for benchmark tasks
+
+# Objectives (multi-objective Pareto)
+objectives:
+  primary:
+    - name: pass_rate
+      direction: maximize
+      weight: 0.4
+    - name: eval_grade
+      direction: maximize
+      weight: 0.3
+  secondary:
+    - name: avg_rounds
+      direction: minimize
+      weight: 0.1
+    - name: avg_time_seconds
+      direction: minimize
+      weight: 0.1
+    - name: stuck_rate
+      direction: minimize
+      weight: 0.1
+
+# Promotion criteria
+promotion:
+  min_holdout_pass_rate: 0.7       # Must pass ≥70% of holdout tasks
+  max_regression_vs_baseline: 0.05 # Can't regress >5% on any metric
+  require_pareto_dominance: true   # Must Pareto-dominate baseline on primary objectives
+  
+# Seed strategy
+seeds:
+  evaluate_all_on_start: true      # Run baseline eval on all seeds before proposer starts
+  
+# Archive
+archive:
+  base_dir: ~/.openclaw/skills/harness/meta-harness
+  keep_traces: true                # Keep full execution traces (paper: critical for proposer)
+  compress_old_runs: false         # Don't compress — proposer needs raw access

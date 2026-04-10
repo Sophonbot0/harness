@@ -1,0 +1,87 @@
+{
+  "description": "Holdout set — 8 benchmark tasks for promotion decisions. Never shown to proposer.",
+  "version": "1.0",
+  "tasks": [
+    {
+      "id": "holdout-001",
+      "name": "CSV Parser with Edge Cases",
+      "category": "feature",
+      "difficulty": "medium",
+      "description": "Build a CSV parser that handles: quoted fields, escaped quotes, newlines within quotes, different delimiters, BOM markers, and empty fields. Return structured data.",
+      "scaffold": "fixtures/holdout-001-csv-parser/",
+      "expected_dod_count": 8,
+      "expected_features": 2
+    },
+    {
+      "id": "holdout-002",
+      "name": "Caching Layer",
+      "category": "feature",
+      "difficulty": "medium",
+      "description": "Add a caching layer to an existing data service. Support TTL, LRU eviction, cache invalidation on writes, and cache statistics. Must not change the existing API interface.",
+      "scaffold": "fixtures/holdout-002-caching/",
+      "expected_dod_count": 9,
+      "expected_features": 3
+    },
+    {
+      "id": "holdout-003",
+      "name": "Logging Infrastructure",
+      "category": "refactor",
+      "difficulty": "easy",
+      "description": "Replace all print() statements with proper structured logging. Add log levels, JSON output format, request ID correlation, and configurable output (file/stdout).",
+      "scaffold": "fixtures/holdout-003-logging/",
+      "expected_dod_count": 7,
+      "expected_features": 3
+    },
+    {
+      "id": "holdout-004",
+      "name": "Auth System",
+      "category": "feature",
+      "difficulty": "hard",
+      "description": "Implement JWT-based authentication: signup, login, token refresh, logout (token blacklist), and role-based access control (admin/user). Include middleware and tests.",
+      "scaffold": "fixtures/holdout-004-auth/",
+      "expected_dod_count": 14,
+      "expected_features": 5
+    },
+    {
+      "id": "holdout-005",
+      "name": "Data Pipeline",
+      "category": "feature",
+      "difficulty": "hard",
+      "description": "Build a 3-stage data pipeline: ingest (read JSON files from directory), transform (normalize dates, deduplicate, validate schema), load (write to SQLite). Include progress reporting and error recovery.",
+      "scaffold": "fixtures/holdout-005-pipeline/",
+      "expected_dod_count": 12,
+      "expected_features": 4
+    },
+    {
+      "id": "holdout-006",
+      "name": "Vague Feature Request",
+      "category": "ambiguous",
+      "difficulty": "medium",
+      "description": "Add search to the app.",
+      "scaffold": "fixtures/holdout-006-search/",
+      "expected_dod_count": 0,
+      "expected_features": 0,
+      "notes": "Intentionally vague. Tests planner assumption-making."
+    },
+    {
+      "id": "holdout-007",
+      "name": "Test Coverage Gap",
+      "category": "refactor",
+      "difficulty": "medium",
+      "description": "The project has 40% test coverage. Add tests to reach 80% coverage. Focus on the untested business logic in services/ directory. Do not modify existing code, only add tests.",
+      "scaffold": "fixtures/holdout-007-test-coverage/",
+      "expected_dod_count": 6,
+      "expected_features": 2
+    },
+    {
+      "id": "holdout-008",
+      "name": "API Versioning",
+      "category": "refactor",
+      "difficulty": "medium",
+      "description": "Add API versioning (v1/v2) to an existing REST API. v1 maintains backwards compatibility. v2 adds pagination, filtering, and partial responses. Shared business logic, version-specific serializers.",
+      "scaffold": "fixtures/holdout-008-api-versioning/",
+      "expected_dod_count": 10,
+      "expected_features": 4
+    }
+  ]
+}
