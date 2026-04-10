@@ -1,0 +1,21 @@
+{
+  "id": "cand-0001",
+  "name": "strict-lean",
+  "parent": "seed-002-strict",
+  "iteration": 1,
+  "created": "2026-04-10T14:05:00Z",
+  "hypothesis": "Reduce strict's verbosity and challenge count while keeping coverage matrix, zero-tolerance eval, and reproduction commands. Target: same DoD quality at ~60% token cost.",
+  "changes": {
+    "planner": "Removed question-asking and sprint-splitting. Kept requirement extraction and coverage matrix. Capped at 5 features / 4 DoD per feature.",
+    "generator": "Condensed to 4 rules. Kept feature-by-feature workflow and eval feedback protocol.",
+    "adversary": "Reduced from 15→8 challenges, 20→12 min budget. Kept reproduction commands and demands-for-evidence.",
+    "evaluator": "Condensed prose. Kept zero-tolerance policy and progress delta tracking.",
+    "skill": "Reduced max rounds 4→3, tightened timeouts, removed sprint support."
+  },
+  "expected_metrics": {
+    "pass_rate": 1.0,
+    "avg_dod_per_task": "7.5-8.5",
+    "avg_tests_per_task": "23-27",
+    "token_cost_vs_parent": "~60%"
+  }
+}

@@ -1,18 +1,36 @@
-# Eval Report
+# Eval Report: CLI Tool with Subcommands
 
-## Task: CLI Tool with init/run/status subcommands
+## Test Results
+- **15/15 tests passing**
+- `python3 -m pytest test_pipeline_cli.py -v` → all green
 
-### Results
-| DoD Item | Status |
-|---|---|
-| cli.py with argparse subcommands | ✅ PASS |
-| `init` creates config.json with defaults | ✅ PASS |
-| `run` reads config, simulates pipeline | ✅ PASS |
-| `status` shows current state | ✅ PASS |
-| `--verbose` flag works on all subcommands | ✅ PASS |
-| `--help` works top-level and per subcommand | ✅ PASS |
-| Proper exit codes (0/1/2) | ✅ PASS |
-| Tests pass (14/14) | ✅ PASS |
+## DoD Checklist
 
-### Grade: PASS
-All 8 DoD items satisfied. 14/14 tests passing.
+### F1: Subcommand init
+- [x] Creates pipeline.json with default config
+- [x] Exits 0
+- [x] Overwrites if exists
+
+### F2: Subcommand run
+- [x] Reads config and executes pipeline stages
+- [x] Exits 1 if no config
+- [x] Respects --verbose
+
+### F3: Subcommand status
+- [x] Reads config and prints state
+- [x] Exits 1 if no config
+
+### F4: Global flags
+- [x] --help shows usage for main and subcommands
+- [x] --verbose increases output detail
+
+### F5: Exit codes & error handling
+- [x] 0 on success
+- [x] 1 on runtime error
+- [x] 2 on bad usage
+- [x] Errors to stderr
+
+## Challenges Addressed
+7/7 challenges passed. No CRITICALs.
+
+## Overall: **PASS**

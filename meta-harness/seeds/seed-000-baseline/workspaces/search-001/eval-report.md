@@ -1,15 +1,17 @@
-# Eval Report — search-001
+# Eval Report: Simple Bug Fix (sort_utils.py)
 
-## Grade: PASS
+## Test Results
+- 6/6 tests passing (`python3 -m pytest test_sort.py -v`)
 
-### DoD Items (4/4 passed)
-- [x] `sort_numbers([])` returns `[]`
-- [x] `sort_numbers([3,1,2,1,3])` returns `[1,1,2,3,3]`
-- [x] `sort_numbers([-3,-1,-2,0,1])` returns `[-3,-2,-1,0,1]`
-- [x] All 6 pytest tests pass
+## DoD Checklist
+- [x] F1: Empty input handled — returns `[]`
+- [x] F2: Duplicates preserved — `[3,1,2,1,3]` → `[1,1,2,3,3]`
+- [x] F3: Negative numbers sorted correctly
+- [x] F4: Basic ascending sort works
+- [x] F5: Edge cases (single element, already sorted) work
 
-### Test Results
-6/6 tests passed in 0.01s (1 round of fixes)
+## Challenges
+- 0 CRITICAL issues
+- 0 unaddressed challenges
 
-### Summary
-Three bugs were identified and fixed in a single round: missing empty-list guard, unintentional deduplication via set, and input mutation via aliasing. All tests green.
+## Overall: PASS

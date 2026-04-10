@@ -1,18 +1,31 @@
-# Challenge Report
+# Challenge Report: search-002
 
-## Edge Cases Identified & Addressed
+## C1: SQL/NoSQL injection in fields
+- **Risk**: Malicious strings in name/message not sanitized beyond length
+- **Reproduction**: `python3 -c "from api import handle_contact; print(handle_contact({'name': \"'; DROP TABLE--\", 'email': 'a@b.com', 'message': 'hi'}))"`
+- **Severity**: LOW — no DB layer exists; validation passes through cleaned strings
 
-1. **Non-dict body** — validated upfront; returns `_body` field error immediately.
-2. **None / null fields** — treated as missing (required-field error), not as empty-string.
-3. **Non-string typed fields** (e.g., integer name) — caught before length/regex checks.
-4. **Whitespace-only fields** — treated as empty after `.strip()` check.
-5. **Email length vs regex order** — length check runs before regex to avoid slow regex on huge strings.
-6. **Email too-long boundary** — initial test used 251 chars (under 254 limit); corrected to 255 chars.
-7. **Multiple errors returned at once** — all field errors accumulated; early-exit only for non-dict body.
-8. **Cleaned data strips whitespace** — output data is stripped, not raw input.
+## C2: Unicode edge cases in email
+- **Risk**: Unicode chars might bypass regex
+- **Reproduction**: `python3 -c "from api import validate_input; print(validate_input({'name': 'A', 'email': 'ü@b.com', 'message': 'hi'}))"` 
+- **Severity**: LOW — regex rejects non-ASCII in local part
 
-## Known Limitations
+## C3: Extra fields not stripped
+- **Risk**: Extra keys in input dict pass through unchecked
+- **Reproduction**: `python3 -c "from api import handle_contact; print(handle_contact({'name': 'A', 'email': 'a@b.com', 'message': 'hi', 'admin': True}))"`
+- **Severity**: LOW — cleaned output only includes REQUIRED_FIELDS
 
-- Email regex does not validate internationalized domain names (IDN / punycode).
-- No rate-limit or abuse protection (out of scope for this task).
-- No Flask/HTTP layer — pure function API; wire-up to Flask trivial.
+## C4: Email with spaces accepted after strip?
+- **Risk**: Email with leading/trailing spaces
+- **Reproduction**: `python3 -c "from api import validate_input; print(validate_input({'name': 'A', 'email': ' a@b.com ', 'message': 'hi'}))"` 
+- **Severity**: MEDIUM — email validated before strip, spaces cause rejection (correct behavior)
+
+## C5: Multiple validation errors reported together
+- **Risk**: Only first error returned
+- **Reproduction**: `python3 -c "from api import validate_input; _, e = validate_input({}); print(len(e))"`
+- **Severity**: NONE — returns all 3 errors for empty dict ✓
+
+## C6: Extremely long input DoS
+- **Risk**: Very long string before length check
+- **Reproduction**: `python3 -c "from api import validate_input; print(validate_input({'name': 'A'*10**7, 'email': 'a@b.com', 'message': 'hi'})[1])"`
+- **Severity**: LOW — length check catches it; no regex on name field

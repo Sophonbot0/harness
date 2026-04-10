@@ -1,55 +1,49 @@
-"""Legacy payment processor — monolithic if/else implementation (before refactor)."""
+"""Legacy payment processor — the 'before' state with if/else chain."""
 
 
-def process_payment(method: str, amount: float, **kwargs) -> dict:
-    """Process a payment using the given method.
+class PaymentError(Exception):
+    pass
 
-    Args:
-        method: 'credit_card', 'paypal', or 'bank_transfer'
-        amount: positive payment amount
-        **kwargs: method-specific fields
 
-    Returns:
-        dict with keys: success, method, amount, message
-    """
+def process_payment(method: str, amount: float, details: dict) -> dict:
+    """Process a payment using the given method. Giant if/else chain."""
     if amount <= 0:
-        raise ValueError(f"Amount must be positive, got {amount}")
+        raise PaymentError("Amount must be positive")
 
     if method == "credit_card":
-        card_number = kwargs.get("card_number", "")
-        expiry = kwargs.get("expiry", "")
-        cvv = kwargs.get("cvv", "")
-        if not card_number or len(card_number) < 13:
-            raise ValueError("Invalid card number")
-        if not expiry:
-            raise ValueError("Expiry date required")
-        if not cvv or len(cvv) < 3:
-            raise ValueError("Invalid CVV")
+        for field in ("card_number", "expiry", "cvv"):
+            if field not in details:
+                raise PaymentError(f"Missing required field: {field}")
         return {
-            "success": True,
+            "status": "success",
             "method": "credit_card",
             "amount": amount,
-            "message": f"Credit card payment of {amount} processed successfully",
+            "transaction_id": f"CC-{id(details)}",
+            "message": f"Charged {amount} to card ending {str(details['card_number'])[-4:]}",
         }
+
     elif method == "paypal":
-        email = kwargs.get("email", "")
-        if not email or "@" not in email:
-            raise ValueError("Valid PayPal email required")
+        if "email" not in details:
+            raise PaymentError("Missing required field: email")
         return {
-            "success": True,
+            "status": "success",
             "method": "paypal",
             "amount": amount,
-            "message": f"PayPal payment of {amount} processed successfully",
+            "transaction_id": f"PP-{id(details)}",
+            "message": f"Charged {amount} to PayPal account {details['email']}",
         }
+
     elif method == "bank_transfer":
-        iban = kwargs.get("iban", "")
-        if not iban or len(iban) < 15:
-            raise ValueError("Invalid IBAN")
+        for field in ("account_number", "routing_number"):
+            if field not in details:
+                raise PaymentError(f"Missing required field: {field}")
         return {
-            "success": True,
+            "status": "success",
             "method": "bank_transfer",
             "amount": amount,
-            "message": f"Bank transfer of {amount} processed successfully",
+            "transaction_id": f"BT-{id(details)}",
+            "message": f"Transferred {amount} to account {details['account_number']}",
         }
+
     else:
-        raise ValueError(f"Unsupported payment method: {method}")
+        raise PaymentError(f"Unknown payment method: {method}")

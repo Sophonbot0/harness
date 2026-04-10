@@ -1,14 +1,27 @@
-# Plan: Fix sort_utils.py
+# Plan: Simple Bug Fix — sort_utils.py
 
-## Bugs Identified
+## Requirements
+Fix `sort_numbers` so it:
+1. Handles empty input without crashing
+2. Preserves duplicates in output
+3. Correctly sorts negative numbers
+4. Does not mutate the input list
 
-1. **Crashes on empty input** — `len(numbers) == 1` check doesn't guard against empty list; `range(len([]))` would work but the early return skips empty case entirely (returns nothing for `[]`).
-2. **Removes duplicates** — dedup block using `set()` strips duplicate values.
-3. **Mutates input** — `result = numbers` aliases the input list instead of copying it.
+## Coverage Matrix
 
-## Definition of Done
+| Feature | DoD |
+|---|---|
+| F1: Empty input | `sort_numbers([])` returns `[]` without error |
+| F2: Duplicates | `sort_numbers([3,1,2,1,3])` == `[1,1,2,3,3]` |
+| F3: Negative numbers | `sort_numbers([-3,-1,-2,0,1])` == `[-3,-2,-1,0,1]` |
+| F4: Basic sort | `sort_numbers([3,1,2])` == `[1,2,3]` |
+| F5: Edge cases | Single element and already-sorted lists work |
 
-- [ ] `sort_numbers([])` returns `[]`
-- [ ] `sort_numbers([3,1,2,1,3])` returns `[1,1,2,3,3]`
-- [ ] `sort_numbers([-3,-1,-2,0,1])` returns `[-3,-2,-1,0,1]`
-- [ ] All 6 pytest tests pass
+## Verify
+```
+python3 -m pytest test_sort.py -v
+```
+
+## Assumptions
+- Python 3.9+ environment
+- Only numeric lists need to be supported

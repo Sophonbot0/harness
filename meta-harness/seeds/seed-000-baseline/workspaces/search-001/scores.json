@@ -1,10 +1,1 @@
-{
-    "task_id": "search-001",
-    "status": "completed",
-    "pass": true,
-    "eval_grade": "PASS",
-    "rounds": 1,
-    "dod_total": 4,
-    "dod_passed": 4,
-    "notes": "Fixed 3 bugs: empty input crash, duplicate removal via set, input mutation. All 6 pytest tests pass."
-}
+{"task_id":"search-001","status":"completed","pass":true,"eval_grade":"PASS","rounds":1,"dod_total":5,"dod_passed":5,"notes":"All 6 tests pass. sort_numbers handles empty input, duplicates, negatives, single elements, and already-sorted lists correctly."}

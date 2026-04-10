@@ -1,25 +1,31 @@
-# Challenge Report
+# Challenge Report: search-003 — Refactor to Strategy Pattern
 
-## Task
-Refactor a monolithic if/else payment processor to the Strategy design pattern.
+## C1: Missing field validation order
+- **Severity**: LOW
+- **Description**: CreditCardStrategy checks fields in tuple order; a different order would change the error message.
+- **Reproduction**: `python3 -m pytest test_payment_processor.py::TestStrategies::test_cc_validate_missing_field -v`
+- **Status**: PASS — validated field order matches legacy behaviour.
 
-## Challenges Identified
+## C2: Thread-safety under concurrent process_payment
+- **Severity**: MEDIUM
+- **Description**: Registry uses a lock for reads and writes, but strategy.process() runs outside the lock.
+- **Reproduction**: `python3 -c "import threading; from payment_processor import *; p=PaymentProcessor(); p.register_strategy('cc',CreditCardStrategy()); ts=[threading.Thread(target=p.process_payment,args=('cc',10,{'card_number':'x','expiry':'y','cvv':'z'})) for _ in range(100)]; [t.start() for t in ts]; [t.join() for t in ts]; print('OK')"`
+- **Status**: PASS — strategies are stateless so no data races.
 
-### 1. Backwards Compatibility (Resolved ✅)
-**Risk:** The legacy `process_payment(method, amount, **kwargs)` signature must remain identical so existing callers need zero changes.
-**Resolution:** The new `payment_processor.py` exposes the same `process_payment` function. It internally resolves a strategy from a registry and delegates to `PaymentProcessor.execute()`. The parametrised backwards-compatibility tests confirm output is byte-for-byte identical.
+## C3: PaymentError class identity across modules
+- **Severity**: HIGH
+- **Description**: Legacy and refactored modules define separate PaymentError classes. `except PaymentError` from one won't catch the other.
+- **Reproduction**: `python3 -c "from payment_processor import PaymentError as A; from payment_processor_legacy import PaymentError as B; print(A is B)"`
+- **Status**: ACKNOWLEDGED — by design; legacy module is the 'before' snapshot. Consumer code should import from the refactored module.
 
-### 2. Amount Validation Placement (Resolved ✅)
-**Risk:** In the legacy version, amount validation sits at the top of the big if/else. In the strategy version, it belongs in the context (`PaymentProcessor.execute`), not inside each strategy (DRY principle).
-**Resolution:** Amount guard lives only in `PaymentProcessor.execute` and in the facade `process_payment` function. Strategies receive guaranteed-positive amounts.
+## C4: Transaction ID uniqueness
+- **Severity**: LOW
+- **Description**: Transaction IDs use `id(details)` which can repeat across calls if dicts are GC'd.
+- **Reproduction**: `python3 -c "from payment_processor import process_payment; ids=[process_payment('paypal',10,{'email':'a@b.c'})['transaction_id'] for _ in range(1000)]; print(len(set(ids)), 'unique of 1000')"`
+- **Status**: ACKNOWLEDGED — matches legacy behaviour; production would use UUID.
 
-### 3. Strategy Registry vs Factory (Design Decision ✅)
-**Risk:** Using a factory function (`if method == "credit_card": return CreditCardStrategy()`) is simpler but less extensible.
-**Resolution:** A `_STRATEGY_REGISTRY` dict of singleton strategy instances was chosen — O(1) lookup, easily extended by third-party code without touching core logic.
-
-### 4. Abstract Base Class on Python 3.9 (Verified ✅)
-**Risk:** `ABC` and `@abstractmethod` work in all Python 3.x; `dict[str, ...]` type hint requires 3.9+.
-**Resolution:** Verified on Python 3.9.6 — all hints are compatible.
-
-## No Unresolved Issues
-All 22 tests pass. No regressions against legacy behaviour.
+## C5: Backwards compat — error message parity
+- **Severity**: LOW
+- **Description**: Error messages must match between legacy and refactored for true drop-in compatibility.
+- **Reproduction**: `python3 -m pytest test_payment_processor.py::TestBackwardsCompat -v`
+- **Status**: PASS — same message strings used.

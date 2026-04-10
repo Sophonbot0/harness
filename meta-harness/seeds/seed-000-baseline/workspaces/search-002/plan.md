@@ -1,14 +1,36 @@
-# Plan: Input Validation for REST API Endpoint
+# Plan: Add Input Validation (search-002)
 
-## Features
-1. Email format validation (regex)
-2. Required field checks (name, email, message)
-3. String length limits (name ≤ 100, email ≤ 254, message ≤ 1000)
-4. Proper 400 error responses with descriptive JSON messages
+## Task
+Add input validation to an existing REST API endpoint. Validate email format, required fields, string length limits. Return proper 400 errors with descriptive messages.
 
-## Definition of Done
-- [ ] validate_input() function exists and returns (data, errors)
-- [ ] Email regex validation rejects invalid formats
-- [ ] Required fields return 400 with field-specific error messages
-- [ ] String length violations return 400 with descriptive messages
-- [ ] All validation tests pass (pytest)
+## Assumptions
+- Python-based API with no framework (pure functions simulating endpoint)
+- Contact form endpoint with name, email, message fields
+- Validation returns structured error objects with field name and message
+
+## Features & Coverage Matrix
+
+### F1: Required Field Validation
+- [x] Missing fields detected and reported
+- [x] Null/None fields rejected
+- [x] Empty/whitespace-only strings rejected
+- [x] Non-string types rejected
+
+### F2: Email Format Validation
+- [x] Valid emails accepted (standard, subdomains)
+- [x] Invalid emails rejected (no @, no TLD, double @)
+- [x] Email regex covers common patterns
+
+### F3: String Length Limits
+- [x] name ≤ 100, email ≤ 254, message ≤ 1000
+- [x] Boundary values pass (exact max length)
+- [x] Over-limit values rejected with descriptive error
+
+### F4: HTTP Error Response Format
+- [x] Valid input → 200 with cleaned data
+- [x] Invalid input → 400 with error list
+- [x] Error messages are descriptive (include field name)
+- [x] Cleaned data has whitespace stripped
+
+### F5: Non-dict Body Handling
+- [x] Non-dict input returns structured error

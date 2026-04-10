@@ -1,9 +1,21 @@
 __pycache__/
 *.pyc
 .DS_Store
-meta-harness/candidates/
+
+# Ephemeral workspace data (regenerated each iteration)
+meta-harness/candidates/*/workspaces/
+meta-harness/seeds/*/workspaces/
 meta-harness/runs/
-meta-harness/active/
 meta-harness/frontier.json
 meta-harness/seeds/*/evaluation/
 meta-harness/fixtures/*/run-artifacts/
+
+# Keep tracked:
+# meta-harness/candidates/*/metadata.json — candidate identity
+# meta-harness/candidates/*/proposal/ — rationales & diffs
+# meta-harness/candidates/*/harness/ — candidate harness prompts
+# meta-harness/candidates/comparison-report.md — run analysis
+# meta-harness/active/ — promoted harness + promotion record
+# meta-harness/promotions.jsonl — audit log
+# meta-harness/seeds/benchmark-report.md — seed comparison
+# meta-harness/runner/ — all runner scripts

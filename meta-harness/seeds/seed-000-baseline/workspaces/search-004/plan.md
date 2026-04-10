@@ -1,18 +1,18 @@
-# CLI Tool Plan
+# Plan: CLI Tool with Subcommands
 
-## Features
-1. `init` subcommand — create config.json with defaults
-2. `run` subcommand — read config, simulate pipeline, print steps
-3. `status` subcommand — read config + state file, show current state
-4. `--help` flag at top level and per subcommand
-5. `--verbose` flag for detailed output
-6. Proper exit codes: 0=success, 1=error, 2=usage error
+## Assumptions
+- Python 3.9+ with argparse (stdlib only)
+- Config file is JSON, written to `./pipeline.json`
+- `run` reads config and simulates a pipeline (prints stages)
+- `status` reads config and reports state
+- Exit codes: 0=success, 1=error, 2=usage error
 
-## Definition of Done
-- [ ] cli.py exists with argparse-based CLI
-- [ ] `init` creates config.json with default values
-- [ ] `run` reads config and simulates pipeline with step output
-- [ ] `status` reads config+state, shows current state
-- [ ] `--verbose` flag produces extra output
-- [ ] Exit codes: 0 on success, 1 on error (missing files etc), 2 on bad usage
-- [ ] Tests pass for all subcommands and flags
+## Features & Coverage Matrix
+
+| # | Feature | DoD |
+|---|---------|-----|
+| F1 | Subcommand: init | Creates `pipeline.json` with default config; exits 0; overwrites if exists |
+| F2 | Subcommand: run | Reads config, executes pipeline stages, prints output; exits 1 if no config; respects --verbose |
+| F3 | Subcommand: status | Reads config, prints current state; exits 1 if no config |
+| F4 | Global flags | --help shows usage for main and each subcommand; --verbose increases output detail |
+| F5 | Exit codes & error handling | 0 on success, 1 on runtime error, 2 on bad usage; stderr for errors |

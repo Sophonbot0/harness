@@ -1,159 +1,140 @@
-"""Payment processor — Strategy pattern implementation (after refactor).
+"""Payment processor — refactored to Strategy pattern.
 
-Maintains full backwards-compatible public API with payment_processor_legacy.py.
+Backwards-compatible: the module-level `process_payment()` function has the
+same signature and return format as the legacy version.
 """
 
+from __future__ import annotations
+
+import threading
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Dict
 
 
 # ---------------------------------------------------------------------------
-# Abstract Strategy
+# Exception
+# ---------------------------------------------------------------------------
+
+class PaymentError(Exception):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# Strategy interface
 # ---------------------------------------------------------------------------
 
 class PaymentStrategy(ABC):
-    """Abstract base class for all payment strategies."""
+    """Abstract base for all payment strategies."""
 
     @abstractmethod
-    def process(self, amount: float, **kwargs: Any) -> dict:
-        """Execute the payment and return a result dict.
+    def validate(self, amount: float, details: Dict[str, Any]) -> None:
+        """Raise PaymentError if details are invalid."""
 
-        Args:
-            amount: positive payment amount
-            **kwargs: strategy-specific parameters
-
-        Returns:
-            dict with keys: success, method, amount, message
-        """
-
-    @property
     @abstractmethod
-    def method_name(self) -> str:
-        """Return the canonical method identifier string."""
+    def process(self, amount: float, details: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute the payment and return a result dict."""
 
 
 # ---------------------------------------------------------------------------
-# Concrete Strategies
+# Concrete strategies
 # ---------------------------------------------------------------------------
 
 class CreditCardStrategy(PaymentStrategy):
-    """Handles credit / debit card payments."""
+    REQUIRED = ("card_number", "expiry", "cvv")
 
-    method_name = "credit_card"
+    def validate(self, amount: float, details: Dict[str, Any]) -> None:
+        for field in self.REQUIRED:
+            if field not in details:
+                raise PaymentError(f"Missing required field: {field}")
 
-    def process(self, amount: float, **kwargs: Any) -> dict:
-        card_number = kwargs.get("card_number", "")
-        expiry = kwargs.get("expiry", "")
-        cvv = kwargs.get("cvv", "")
-
-        if not card_number or len(card_number) < 13:
-            raise ValueError("Invalid card number")
-        if not expiry:
-            raise ValueError("Expiry date required")
-        if not cvv or len(cvv) < 3:
-            raise ValueError("Invalid CVV")
-
+    def process(self, amount: float, details: Dict[str, Any]) -> Dict[str, Any]:
+        self.validate(amount, details)
         return {
-            "success": True,
-            "method": self.method_name,
+            "status": "success",
+            "method": "credit_card",
             "amount": amount,
-            "message": f"Credit card payment of {amount} processed successfully",
+            "transaction_id": f"CC-{id(details)}",
+            "message": f"Charged {amount} to card ending {str(details['card_number'])[-4:]}",
         }
 
 
 class PayPalStrategy(PaymentStrategy):
-    """Handles PayPal payments."""
+    REQUIRED = ("email",)
 
-    method_name = "paypal"
+    def validate(self, amount: float, details: Dict[str, Any]) -> None:
+        for field in self.REQUIRED:
+            if field not in details:
+                raise PaymentError(f"Missing required field: {field}")
 
-    def process(self, amount: float, **kwargs: Any) -> dict:
-        email = kwargs.get("email", "")
-
-        if not email or "@" not in email:
-            raise ValueError("Valid PayPal email required")
-
+    def process(self, amount: float, details: Dict[str, Any]) -> Dict[str, Any]:
+        self.validate(amount, details)
         return {
-            "success": True,
-            "method": self.method_name,
+            "status": "success",
+            "method": "paypal",
             "amount": amount,
-            "message": f"PayPal payment of {amount} processed successfully",
+            "transaction_id": f"PP-{id(details)}",
+            "message": f"Charged {amount} to PayPal account {details['email']}",
         }
 
 
 class BankTransferStrategy(PaymentStrategy):
-    """Handles bank transfer / SEPA payments."""
+    REQUIRED = ("account_number", "routing_number")
 
-    method_name = "bank_transfer"
+    def validate(self, amount: float, details: Dict[str, Any]) -> None:
+        for field in self.REQUIRED:
+            if field not in details:
+                raise PaymentError(f"Missing required field: {field}")
 
-    def process(self, amount: float, **kwargs: Any) -> dict:
-        iban = kwargs.get("iban", "")
-
-        if not iban or len(iban) < 15:
-            raise ValueError("Invalid IBAN")
-
+    def process(self, amount: float, details: Dict[str, Any]) -> Dict[str, Any]:
+        self.validate(amount, details)
         return {
-            "success": True,
-            "method": self.method_name,
+            "status": "success",
+            "method": "bank_transfer",
             "amount": amount,
-            "message": f"Bank transfer of {amount} processed successfully",
+            "transaction_id": f"BT-{id(details)}",
+            "message": f"Transferred {amount} to account {details['account_number']}",
         }
 
 
 # ---------------------------------------------------------------------------
-# Context
+# Processor (context in Strategy-pattern terms)
 # ---------------------------------------------------------------------------
-
-_STRATEGY_REGISTRY: dict[str, PaymentStrategy] = {
-    "credit_card": CreditCardStrategy(),
-    "paypal": PayPalStrategy(),
-    "bank_transfer": BankTransferStrategy(),
-}
-
 
 class PaymentProcessor:
-    """Context that delegates payment processing to a strategy."""
+    """Registry + dispatcher for payment strategies."""
 
-    def __init__(self, strategy: PaymentStrategy) -> None:
-        self._strategy = strategy
+    def __init__(self) -> None:
+        self._strategies: Dict[str, PaymentStrategy] = {}
+        self._lock = threading.Lock()
 
-    @property
-    def strategy(self) -> PaymentStrategy:
-        return self._strategy
+    def register_strategy(self, method: str, strategy: PaymentStrategy) -> None:
+        with self._lock:
+            self._strategies[method] = strategy
 
-    @strategy.setter
-    def strategy(self, strategy: PaymentStrategy) -> None:
-        self._strategy = strategy
-
-    def execute(self, amount: float, **kwargs: Any) -> dict:
+    def process_payment(self, method: str, amount: float, details: dict) -> dict:
         if amount <= 0:
-            raise ValueError(f"Amount must be positive, got {amount}")
-        return self._strategy.process(amount, **kwargs)
+            raise PaymentError("Amount must be positive")
+        with self._lock:
+            strategy = self._strategies.get(method)
+        if strategy is None:
+            raise PaymentError(f"Unknown payment method: {method}")
+        return strategy.process(amount, details)
 
 
 # ---------------------------------------------------------------------------
-# Backwards-Compatible Public API
+# Default processor (pre-loaded with built-in strategies)
 # ---------------------------------------------------------------------------
 
-def process_payment(method: str, amount: float, **kwargs: Any) -> dict:
-    """Process a payment — drop-in replacement for the legacy implementation.
+_default_processor = PaymentProcessor()
+_default_processor.register_strategy("credit_card", CreditCardStrategy())
+_default_processor.register_strategy("paypal", PayPalStrategy())
+_default_processor.register_strategy("bank_transfer", BankTransferStrategy())
 
-    Args:
-        method: 'credit_card', 'paypal', or 'bank_transfer'
-        amount: positive payment amount
-        **kwargs: method-specific fields
 
-    Returns:
-        dict with keys: success, method, amount, message
+# ---------------------------------------------------------------------------
+# Backwards-compatible module-level function
+# ---------------------------------------------------------------------------
 
-    Raises:
-        ValueError: on invalid amount, missing fields, or unknown method
-    """
-    if amount <= 0:
-        raise ValueError(f"Amount must be positive, got {amount}")
-
-    strategy = _STRATEGY_REGISTRY.get(method)
-    if strategy is None:
-        raise ValueError(f"Unsupported payment method: {method}")
-
-    processor = PaymentProcessor(strategy)
-    return processor.execute(amount, **kwargs)
+def process_payment(method: str, amount: float, details: dict) -> dict:
+    """Drop-in replacement for the legacy process_payment function."""
+    return _default_processor.process_payment(method, amount, details)

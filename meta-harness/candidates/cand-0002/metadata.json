@@ -1,0 +1,22 @@
+{
+  "id": "cand-0002",
+  "name": "fast-strict-hybrid",
+  "parents": ["seed-003-fast", "seed-002-strict"],
+  "iteration": 1,
+  "created": "2026-04-10T14:05:00Z",
+  "hypothesis": "Inject strict's 3 key quality signals (coverage matrix, reproduction commands, zero-tolerance eval) into fast's lean frame. Target: fast-level cost with strict-quality output.",
+  "changes": {
+    "planner": "Fast structure + requirement extraction + coverage matrix. Max 5 features / 4 DoD.",
+    "generator": "Unchanged from fast (batch commit, lean).",
+    "adversary": "Fast's 5-issue cap + strict's reproduction commands + 3 demands-for-evidence.",
+    "evaluator": "Fast's concise format + strict's zero-tolerance policy + progress delta.",
+    "skill": "Fast's timeouts + zero-tolerance pass criteria."
+  },
+  "expected_metrics": {
+    "pass_rate": 1.0,
+    "avg_dod_per_task": "6.5-7.5",
+    "avg_tests_per_task": "19-23",
+    "token_cost_vs_strict": "~70%",
+    "token_cost_vs_fast": "~130%"
+  }
+}

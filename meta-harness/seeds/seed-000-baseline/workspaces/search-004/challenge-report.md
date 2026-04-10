@@ -1,17 +1,37 @@
-# Challenge Report
+# Challenge Report: CLI Tool with Subcommands
 
-## Summary
-All 14 tests pass. No critical issues found.
+## C1: Missing config on run
+- **Severity**: Medium
+- **Repro**: `python3 pipeline_cli.py run`
+- **Expected**: Exit 1, error to stderr
+- **Result**: PASS
 
-## Checks
-- **Files exist**: cli.py, test_cli.py, plan.md ✅
-- **Syntax**: No syntax errors ✅
-- **Tests**: 14/14 passed ✅
-- **Exit codes**: 0=success, 1=error (missing files/already exists), nonzero on bad usage ✅
-- **--help**: Works at top level and per subcommand ✅
-- **--verbose**: Produces extra output for all three subcommands ✅
-- **--force on init**: Allows overwriting existing config ✅
+## C2: Missing config on status
+- **Repro**: `python3 pipeline_cli.py status`
+- **Expected**: Exit 1, error to stderr
+- **Result**: PASS
 
-## Risks / Notes
-- State file is named `.state.json` (hidden); acceptable for a CLI tool.
-- Pipeline simulation is synchronous/instant; no real execution needed per spec.
+## C3: No subcommand given
+- **Repro**: `python3 pipeline_cli.py`
+- **Expected**: Exit 2, help printed
+- **Result**: PASS
+
+## C4: Double init overwrites
+- **Repro**: `python3 pipeline_cli.py init && python3 pipeline_cli.py init`
+- **Expected**: No crash, file overwritten
+- **Result**: PASS
+
+## C5: Verbose flag before subcommand
+- **Repro**: `python3 pipeline_cli.py -v run`
+- **Expected**: Verbose output with stage counters
+- **Result**: PASS
+
+## C6: --help on subcommand
+- **Repro**: `python3 pipeline_cli.py init --help`
+- **Expected**: Exit 0 with subcommand help
+- **Result**: PASS
+
+## C7: State persists after run
+- **Repro**: `python3 pipeline_cli.py init && python3 pipeline_cli.py run && python3 pipeline_cli.py status`
+- **Expected**: State shows "completed"
+- **Result**: PASS
