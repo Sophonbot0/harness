@@ -1,0 +1,1 @@
+{"task_id":"search-012","status":"completed","pass":true,"eval_grade":"PASS","rounds":1,"dod_total":9,"dod_passed":9,"notes":"Created buggy codebase with 3 intentional bugs (off-by-one, race condition, type coercion). Confirmed 3 failing tests, fixed all bugs, all 10 tests now pass."}

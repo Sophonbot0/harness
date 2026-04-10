@@ -1,0 +1,1 @@
+{"task_id":"search-010","status":"completed","pass":true,"eval_grade":"PASS","rounds":1,"dod_total":9,"dod_passed":9,"notes":"44/44 tests passing. Config class loads from defaults→file→env→CLI with correct priority. Full nested key support, type coercion (str to int/float/bool/list/dict), validation with helpful errors. All built stdlib-only (no PyYAML)."}

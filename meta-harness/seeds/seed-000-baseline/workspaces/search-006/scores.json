@@ -1,0 +1,10 @@
+{
+    "task_id": "search-006",
+    "status": "completed",
+    "pass": true,
+    "eval_grade": "PASS",
+    "rounds": 1,
+    "dod_total": 8,
+    "dod_passed": 8,
+    "notes": "Sliding window rate limiter with per-IP/per-API-key support, 429+Retry-After, health bypass. 20/20 tests pass. Output dir lost — score reconstructed from subagent report."
+}

@@ -1,0 +1,1 @@
+{"task_id":"search-005","status":"completed","pass":true,"eval_grade":"PASS","rounds":1,"dod_total":5,"dod_passed":5,"notes":"13/13 tests passing. Migration adds tags JSON column from category data using 5000-row batches. Rollback uses table-rebuild for SQLite compatibility. 110K row test passes in under 1s."}
