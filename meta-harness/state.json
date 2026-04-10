@@ -1,0 +1,33 @@
+{
+  "last_iteration": "2026-04-10T20:03:07Z",
+  "iteration_number": 2,
+  "next_cand_id": 5,
+  "running": false,
+  "baseline": {
+    "id": "cand-0001",
+    "name": "strict-lean",
+    "composite": 0.945,
+    "total_dod": 181,
+    "promoted_at": "2026-04-10T17:01:54Z"
+  },
+  "consecutive_no_improvement": 1,
+  "schedule": "2x/day",
+  "history": [
+    {
+      "iteration": 1,
+      "date": "2026-04-10",
+      "candidates": ["cand-0001", "cand-0002"],
+      "winner": "cand-0001",
+      "promoted": true,
+      "composite": 0.945
+    },
+    {
+      "iteration": 2,
+      "date": "2026-04-10",
+      "candidates": ["cand-0003", "cand-0004"],
+      "winner": null,
+      "promoted": false,
+      "reason": "Neither candidate beat cand-0001 (0.945)"
+    }
+  ]
+}
