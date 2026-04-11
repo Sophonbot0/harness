@@ -1,0 +1,10 @@
+{
+  "id": "search-001",
+  "name": "Simple Bug Fix",
+  "category": "bug_fix",
+  "difficulty": "easy",
+  "description": "Fix a broken sort function that crashes on empty input and doesn't handle duplicates correctly.",
+  "scaffold": "fixtures/search-001-sort-bug/",
+  "expected_dod_count": 4,
+  "expected_features": 1
+}

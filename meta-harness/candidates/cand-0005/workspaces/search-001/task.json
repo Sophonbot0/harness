@@ -1,0 +1,6 @@
+{
+  "task_description": "Fix a broken sort function that crashes on empty input and doesn't handle duplicates correctly.",
+  "verify_command": "cd {project_dir} && python3 -m pytest test_sort.py -v",
+  "files": ["sort_utils.py", "test_sort.py"],
+  "language": "python"
+}

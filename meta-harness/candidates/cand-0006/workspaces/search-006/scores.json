@@ -1,0 +1,12 @@
+{
+  "task_id": "search-006",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 17,
+  "dod_passed": 17,
+  "tests_passed": 19,
+  "tests_total": 19,
+  "notes": "Rate limiter \u2014 adversary found clock-skew edge case"
+}

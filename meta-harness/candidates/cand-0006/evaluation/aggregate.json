@@ -1,0 +1,224 @@
+{
+  "run_id": "2026-04-11T15-19-37",
+  "candidate_dir": "candidates/cand-0006",
+  "task_set": "config/search-set.json",
+  "status": "pending_execution",
+  "task_count": 12,
+  "pending_count": 12,
+  "validation": {
+    "candidate_dir": "candidates/cand-0006",
+    "is_valid": true,
+    "issues": [],
+    "issue_count": 0,
+    "critical_count": 0,
+    "warning_count": 0
+  },
+  "scores": {
+    "task_count": 12,
+    "passed": 0,
+    "pass_rate": 0.0,
+    "eval_grade": 0.0,
+    "avg_rounds": 0.0,
+    "avg_time_seconds": 0.0,
+    "stuck_rate": 0.0,
+    "token_cost": 0.0,
+    "task_results": [
+      {
+        "task_id": "search-001",
+        "status": "pending_execution",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.0,
+        "total_tokens": 0,
+        "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-001/spawn_instruction.json",
+        "project_dir": "candidates/cand-0006/workspaces/search-001"
+      },
+      {
+        "task_id": "search-002",
+        "status": "pending_execution",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.0,
+        "total_tokens": 0,
+        "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-002/spawn_instruction.json",
+        "project_dir": "candidates/cand-0006/workspaces/search-002"
+      },
+      {
+        "task_id": "search-003",
+        "status": "pending_execution",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.0,
+        "total_tokens": 0,
+        "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-003/spawn_instruction.json",
+        "project_dir": "candidates/cand-0006/workspaces/search-003"
+      },
+      {
+        "task_id": "search-004",
+        "status": "pending_execution",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.0,
+        "total_tokens": 0,
+        "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-004/spawn_instruction.json",
+        "project_dir": "candidates/cand-0006/workspaces/search-004"
+      },
+      {
+        "task_id": "search-005",
+        "status": "pending_execution",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.0,
+        "total_tokens": 0,
+        "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-005/spawn_instruction.json",
+        "project_dir": "candidates/cand-0006/workspaces/search-005"
+      },
+      {
+        "task_id": "search-006",
+        "status": "pending_execution",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.0,
+        "total_tokens": 0,
+        "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-006/spawn_instruction.json",
+        "project_dir": "candidates/cand-0006/workspaces/search-006"
+      },
+      {
+        "task_id": "search-007",
+        "status": "pending_execution",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.0,
+        "total_tokens": 0,
+        "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-007/spawn_instruction.json",
+        "project_dir": "candidates/cand-0006/workspaces/search-007"
+      },
+      {
+        "task_id": "search-008",
+        "status": "pending_execution",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.0,
+        "total_tokens": 0,
+        "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-008/spawn_instruction.json",
+        "project_dir": "candidates/cand-0006/workspaces/search-008"
+      },
+      {
+        "task_id": "search-009",
+        "status": "pending_execution",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.0,
+        "total_tokens": 0,
+        "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-009/spawn_instruction.json",
+        "project_dir": "candidates/cand-0006/workspaces/search-009"
+      },
+      {
+        "task_id": "search-010",
+        "status": "pending_execution",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.0,
+        "total_tokens": 0,
+        "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-010/spawn_instruction.json",
+        "project_dir": "candidates/cand-0006/workspaces/search-010"
+      },
+      {
+        "task_id": "search-011",
+        "status": "pending_execution",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.0,
+        "total_tokens": 0,
+        "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-011/spawn_instruction.json",
+        "project_dir": "candidates/cand-0006/workspaces/search-011"
+      },
+      {
+        "task_id": "search-012",
+        "status": "pending_execution",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.0,
+        "total_tokens": 0,
+        "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-012/spawn_instruction.json",
+        "project_dir": "candidates/cand-0006/workspaces/search-012"
+      }
+    ],
+    "composite": 0.325
+  },
+  "evaluated_at": "2026-04-11T15:19:37.333273+00:00Z",
+  "pending_spawns": [
+    {
+      "task_id": "search-001",
+      "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-001/spawn_instruction.json",
+      "project_dir": "candidates/cand-0006/workspaces/search-001"
+    },
+    {
+      "task_id": "search-002",
+      "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-002/spawn_instruction.json",
+      "project_dir": "candidates/cand-0006/workspaces/search-002"
+    },
+    {
+      "task_id": "search-003",
+      "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-003/spawn_instruction.json",
+      "project_dir": "candidates/cand-0006/workspaces/search-003"
+    },
+    {
+      "task_id": "search-004",
+      "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-004/spawn_instruction.json",
+      "project_dir": "candidates/cand-0006/workspaces/search-004"
+    },
+    {
+      "task_id": "search-005",
+      "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-005/spawn_instruction.json",
+      "project_dir": "candidates/cand-0006/workspaces/search-005"
+    },
+    {
+      "task_id": "search-006",
+      "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-006/spawn_instruction.json",
+      "project_dir": "candidates/cand-0006/workspaces/search-006"
+    },
+    {
+      "task_id": "search-007",
+      "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-007/spawn_instruction.json",
+      "project_dir": "candidates/cand-0006/workspaces/search-007"
+    },
+    {
+      "task_id": "search-008",
+      "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-008/spawn_instruction.json",
+      "project_dir": "candidates/cand-0006/workspaces/search-008"
+    },
+    {
+      "task_id": "search-009",
+      "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-009/spawn_instruction.json",
+      "project_dir": "candidates/cand-0006/workspaces/search-009"
+    },
+    {
+      "task_id": "search-010",
+      "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-010/spawn_instruction.json",
+      "project_dir": "candidates/cand-0006/workspaces/search-010"
+    },
+    {
+      "task_id": "search-011",
+      "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-011/spawn_instruction.json",
+      "project_dir": "candidates/cand-0006/workspaces/search-011"
+    },
+    {
+      "task_id": "search-012",
+      "spawn_instruction": "candidates/cand-0006/evaluation/tasks/search-012/spawn_instruction.json",
+      "project_dir": "candidates/cand-0006/workspaces/search-012"
+    }
+  ]
+}

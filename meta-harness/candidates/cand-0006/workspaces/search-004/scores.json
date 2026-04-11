@@ -1,0 +1,12 @@
+{
+  "task_id": "search-004",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 12,
+  "dod_passed": 12,
+  "tests_passed": 19,
+  "tests_total": 19,
+  "notes": "CLI tool \u2014 adversary suggested malformed-args handling"
+}

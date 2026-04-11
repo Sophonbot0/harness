@@ -1,0 +1,11 @@
+{
+  "id": "search-008",
+  "name": "Ambiguous Request",
+  "category": "ambiguous",
+  "difficulty": "medium",
+  "description": "Make the dashboard faster.",
+  "scaffold": "fixtures/search-008-dashboard/",
+  "expected_dod_count": 0,
+  "expected_features": 0,
+  "notes": "Intentionally vague. Tests planner's ability to ask questions or make reasonable assumptions."
+}

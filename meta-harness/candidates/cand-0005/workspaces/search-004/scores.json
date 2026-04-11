@@ -1,0 +1,12 @@
+{
+  "task_id": "search-004",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A",
+  "rounds": 1,
+  "dod_total": 10,
+  "dod_passed": 10,
+  "tests_passed": 20,
+  "tests_total": 20,
+  "notes": "CLI tool \u2014 DoD cap 4 restored good granularity"
+}

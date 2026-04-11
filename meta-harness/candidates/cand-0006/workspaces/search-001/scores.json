@@ -1,0 +1,12 @@
+{
+  "task_id": "search-001",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 13,
+  "dod_passed": 13,
+  "tests_passed": 12,
+  "tests_total": 12,
+  "notes": "Sort bug fix \u2014 adversary found boundary value edge case, suggested null-handling DoD"
+}

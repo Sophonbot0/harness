@@ -1,0 +1,12 @@
+{
+  "task_id": "search-011",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 17,
+  "dod_passed": 17,
+  "tests_passed": 21,
+  "tests_total": 21,
+  "notes": "URL shortener \u2014 adversary suggested collision-handling and expiry DoD"
+}

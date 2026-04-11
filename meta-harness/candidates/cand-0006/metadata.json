@@ -1,0 +1,21 @@
+{
+  "id": "cand-0006",
+  "name": "focused-adversary",
+  "parent": "cand-0001",
+  "iteration": 3,
+  "created": "2026-04-11T15:16:00Z",
+  "hypothesis": "Adversary quality > quantity. Instead of 8 generic challenges, focus adversary exclusively on: (1) edge cases & error paths, (2) untested code paths, (3) security/data integrity. Skip basic functionality checks (evaluator covers those via DoD). Deeper analysis on fewer challenges should surface harder bugs. Also add explicit instruction for adversary to suggest missing DoD items.",
+  "changes": {
+    "planner": "Same as cand-0001. Coverage matrix + 4 DoD/feature.",
+    "generator": "Same as cand-0001.",
+    "adversary": "Rewritten: focus exclusively on edge cases, untested paths, and security. Max 6 challenges but each must be MAJOR+. Must suggest ≤3 missing DoD items. 12 min budget unchanged.",
+    "evaluator": "Extended: must verify basic DoD AND run adversary's suggested missing DoD items as bonus checks. Still zero-tolerance on original DoD.",
+    "skill": "Same workflow (PLAN→BUILD→CHALLENGE→EVAL). Evaluator timeout increased 20→22 min to accommodate bonus checks."
+  },
+  "expected_metrics": {
+    "pass_rate": 1.0,
+    "avg_dod_per_task": "15-18",
+    "avg_tests_per_task": "18-24",
+    "token_cost_vs_parent": "~90%"
+  }
+}

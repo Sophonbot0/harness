@@ -1,0 +1,21 @@
+{
+  "id": "cand-0005",
+  "name": "tdd-crossover",
+  "parent": "cand-0001",
+  "iteration": 3,
+  "created": "2026-04-11T15:16:00Z",
+  "hypothesis": "Crossover: combine cand-0003's TDD generator (tests-first) with cand-0001's full adversary (8 challenges, 12 min). Restore DoD cap to 4/feature (cand-0003's cap of 3 was too aggressive, losing 9% DoD). Hypothesis: TDD catches implementation bugs earlier → adversary can focus on design/integration issues → higher DoD granularity than either parent alone.",
+  "changes": {
+    "planner": "Same as cand-0001. Coverage matrix + 4 DoD/feature cap restored (was 3 in cand-0003).",
+    "generator": "TDD flow from cand-0003: write failing tests for each DoD criterion FIRST, then implement until green. Feature-by-feature. But with cand-0001's 4 rules structure.",
+    "adversary": "Full cand-0001 adversary: 8 challenges, 12 min, reproduction commands + demands-for-evidence. Unchanged.",
+    "evaluator": "Unchanged from cand-0001. Zero-tolerance + progress delta.",
+    "skill": "Same workflow as cand-0001 (PLAN→BUILD→CHALLENGE→EVAL). All timeouts same."
+  },
+  "expected_metrics": {
+    "pass_rate": 1.0,
+    "avg_dod_per_task": "14-17",
+    "avg_tests_per_task": "22-28",
+    "token_cost_vs_parent": "~95%"
+  }
+}

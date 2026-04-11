@@ -1,0 +1,11 @@
+{
+  "task_id": "search-002",
+  "status": "pending_execution",
+  "pass": false,
+  "eval_grade": "N/A",
+  "rounds": 0,
+  "elapsed_seconds": 0.0,
+  "total_tokens": 0,
+  "spawn_instruction": "candidates/cand-0005/evaluation/tasks/search-002/spawn_instruction.json",
+  "project_dir": "candidates/cand-0005/workspaces/search-002"
+}

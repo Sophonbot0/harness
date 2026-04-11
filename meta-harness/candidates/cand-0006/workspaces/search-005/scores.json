@@ -1,0 +1,12 @@
+{
+  "task_id": "search-005",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 16,
+  "dod_passed": 16,
+  "tests_passed": 15,
+  "tests_total": 15,
+  "notes": "DB migration \u2014 adversary focused on partial-migration recovery"
+}
