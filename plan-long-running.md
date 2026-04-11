@@ -48,7 +48,7 @@ A custom context engine would replace LCM (lossless-claw), which already works w
 ## Recommendation: Option C — Hybrid Plugin + Skill
 
 **Plugin name:** `harness-enforcer`  
-**Plugin location:** `/Users/jbelo/.openclaw/extensions/harness-enforcer/`
+**Plugin location:** `~/.openclaw/extensions/harness-enforcer/`
 
 The plugin is the "immune system." The skill is the "brain." The plugin can't be ignored; the skill can be.
 

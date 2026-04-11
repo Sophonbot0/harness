@@ -1,7 +1,7 @@
 # Plan: Add Adversarial Grounding Agent to Harness
 
 ## Context
-The harness skill at `/Users/jbelo/.openclaw/skills/harness/` implements a 3-agent pipeline: Planner → Generator → Evaluator. It works well but suffers from overconfidence — the Generator can produce work that "looks right" but has untested assumptions, and the Evaluator only checks DoD criteria mechanically. There's no agent that actively challenges assumptions and demands evidence.
+The harness skill at `~/.openclaw/skills/harness/` implements a 3-agent pipeline: Planner → Generator → Evaluator. It works well but suffers from overconfidence — the Generator can produce work that "looks right" but has untested assumptions, and the Evaluator only checks DoD criteria mechanically. There's no agent that actively challenges assumptions and demands evidence.
 
 Inspired by Anthropic's "Building effective agents" (ground truth at each step) and "Demystifying evals for AI agents" (adversarial stress-testing).
 
