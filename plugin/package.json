@@ -1,0 +1,22 @@
+{
+  "name": "harness-enforcer",
+  "version": "2.0.0",
+  "description": "Contract-driven quality enforcement plugin for OpenClaw — 9 tools, session isolation, autonomy features",
+  "type": "module",
+  "main": "index.ts",
+  "license": "MIT",
+  "files": [
+    "index.ts",
+    "src/**/*.ts",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "openclaw": "*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
