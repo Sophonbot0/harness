@@ -1,6 +1,7 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import * as path from "node:path";
 import * as os from "node:os";
+import * as https from "node:https";
 import {
   createHarnessStartTool,
   createHarnessCheckpointTool,
@@ -94,6 +95,60 @@ function parseTelegramFromSessionKey(
   return null;
 }
 
+// ─── Direct Telegram Bot API helpers (fallback when runtime API unavailable) ───
+
+function getTelegramBotToken(): string | null {
+  // Try env first, then fallback to reading openclaw.json
+  if (process.env.TELEGRAM_BOT_TOKEN) return process.env.TELEGRAM_BOT_TOKEN;
+  try {
+    const configPath = path.join(os.homedir(), ".openclaw", "openclaw.json");
+    const fs = require("node:fs");
+    const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    // Navigate the config structure to find botToken
+    const token = config?.channels?.telegram?.botToken
+      ?? config?.telegram?.botToken;
+    return token ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function telegramApiCall(
+  botToken: string,
+  method: string,
+  body: Record<string, unknown>,
+): Promise<Record<string, unknown> | null> {
+  return new Promise((resolve) => {
+    const data = JSON.stringify(body);
+    const req = https.request(
+      `https://api.telegram.org/bot${botToken}/${method}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(data),
+        },
+        timeout: 10_000,
+      },
+      (res) => {
+        let chunks = "";
+        res.on("data", (c: Buffer) => { chunks += c.toString(); });
+        res.on("end", () => {
+          try {
+            const parsed = JSON.parse(chunks);
+            resolve(parsed?.ok ? parsed.result : null);
+          } catch {
+            resolve(null);
+          }
+        });
+      },
+    );
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => { req.destroy(); resolve(null); });
+    req.write(data);
+    req.end();
+  });
+}
 export default {
   id: "harness-enforcer",
   name: "Harness Enforcer",
@@ -121,7 +176,7 @@ export default {
       messageId: string,
     ): Promise<boolean> {
       try {
-        // Try the conversation actions API first
+        // Try runtime API first
         if (api.runtime?.channel?.telegram?.conversationActions?.deleteMessage) {
           await api.runtime.channel.telegram.conversationActions.deleteMessage(
             chatId,
@@ -129,8 +184,16 @@ export default {
           );
           return true;
         }
-        // Fallback: try sendMessageTelegram-style delete if available
-        api.logger.warn(`[harness-enforcer] deleteMessage API not available, message ${messageId} will remain`);
+        // Fallback: direct Telegram Bot API
+        const botToken = getTelegramBotToken();
+        if (botToken) {
+          const result = await telegramApiCall(botToken, "deleteMessage", {
+            chat_id: chatId,
+            message_id: parseInt(messageId, 10),
+          });
+          return result !== null;
+        }
+        api.logger.warn(`[harness-enforcer] deleteMessage: no API available, message ${messageId} will remain`);
         return false;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -145,25 +208,36 @@ export default {
       text: string,
     ): Promise<boolean> {
       try {
+        // Try runtime API first
         const fn = api.runtime?.channel?.telegram?.conversationActions?.editMessage;
-        if (!fn || typeof fn !== 'function') {
-          api.logger.warn(
-            `[harness-enforcer] editProgressBar: editMessage not available (type=${typeof fn})`,
-          );
-          return true; // Don't clear messageId
+        if (fn && typeof fn === 'function') {
+          const timeoutMs = 15_000;
+          const result = await Promise.race([
+            fn(chatId, messageId, text),
+            new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), timeoutMs)),
+          ]);
+          if (result === 'timeout') {
+            api.logger.warn(
+              `[harness-enforcer] editProgressBar: runtime API timed out after ${timeoutMs}ms`,
+            );
+            return true; // Transient, keep trying
+          }
+          return true;
         }
-        const timeoutMs = 15_000;
-        const result = await Promise.race([
-          fn(chatId, messageId, text),
-          new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), timeoutMs)),
-        ]);
-        if (result === 'timeout') {
-          api.logger.warn(
-            `[harness-enforcer] editProgressBar: timed out after ${timeoutMs}ms`,
-          );
-          return true; // Transient, keep trying
+
+        // Fallback: direct Telegram Bot API
+        const botToken = getTelegramBotToken();
+        if (!botToken) {
+          api.logger.warn(`[harness-enforcer] editProgressBar: no runtime API and no bot token`);
+          return true;
         }
-        return true;
+        api.logger.info(`[harness-enforcer] editProgressBar: using direct API fallback for msg ${messageId}`);
+        const result = await telegramApiCall(botToken, "editMessageText", {
+          chat_id: chatId,
+          message_id: parseInt(messageId, 10),
+          text,
+        });
+        return result !== null;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         // If message is not modified (content identical), that's fine
@@ -188,46 +262,71 @@ export default {
       runId: string,
     ): Promise<void> {
       try {
+        // Try runtime API first
         const fn = api.runtime?.channel?.telegram?.sendMessageTelegram;
-        if (!fn || typeof fn !== 'function') {
+        if (fn && typeof fn === 'function') {
+          api.logger.info(
+            `[harness-enforcer] sendProgressBar: using runtime API, chatId=${chatId} threadId=${threadId ?? 'none'}`,
+          );
+          const timeoutMs = 15_000;
+          const result = await Promise.race([
+            fn(
+              chatId,
+              text,
+              {
+                ...(threadId ? { messageThreadId: parseInt(threadId, 10) } : {}),
+              },
+            ),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+          ]);
+          if (result === null) {
+            api.logger.warn(
+              `[harness-enforcer] sendProgressBar: runtime API timed out after ${timeoutMs}ms, trying direct API`,
+            );
+            // Fall through to direct API below
+          } else {
+            api.logger.info(
+              `[harness-enforcer] sendProgressBar result: ${JSON.stringify(result)?.slice(0, 300)}`,
+            );
+            if (result?.messageId) {
+              runState.telegramMessageId = String(result.messageId);
+              state.writeRunState(runsDir, runId, runState);
+              api.logger.info(
+                `[harness-enforcer] Progress bar sent via runtime API: msgId=${result.messageId}`,
+              );
+            }
+            return;
+          }
+        }
+
+        // Fallback: direct Telegram Bot API
+        const botToken = getTelegramBotToken();
+        if (!botToken) {
           api.logger.warn(
-            `[harness-enforcer] sendProgressBar: sendMessageTelegram not available (type=${typeof fn})`,
+            `[harness-enforcer] sendProgressBar: no runtime API and no bot token available`,
           );
           return;
         }
         api.logger.info(
-          `[harness-enforcer] sendProgressBar: chatId=${chatId} threadId=${threadId ?? 'none'}`,
+          `[harness-enforcer] sendProgressBar: using direct API fallback, chatId=${chatId}`,
         );
-        // Wrap in timeout to avoid hanging forever
-        const timeoutMs = 15_000;
-        const result = await Promise.race([
-          fn(
-            chatId,
-            text,
-            {
-              ...(threadId ? { messageThreadId: parseInt(threadId, 10) } : {}),
-            },
-          ),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
-        ]);
-        if (result === null) {
-          api.logger.warn(
-            `[harness-enforcer] sendProgressBar: timed out after ${timeoutMs}ms`,
-          );
-          return;
-        }
-        api.logger.info(
-          `[harness-enforcer] sendProgressBar result: ${JSON.stringify(result)?.slice(0, 300)}`,
-        );
-        if (result?.messageId) {
-          runState.telegramMessageId = String(result.messageId);
+        const body: Record<string, unknown> = {
+          chat_id: chatId,
+          text,
+        };
+        if (threadId) body.message_thread_id = parseInt(threadId, 10);
+
+        const result = await telegramApiCall(botToken, "sendMessage", body);
+        if (result && typeof result === 'object' && 'message_id' in result) {
+          const msgId = String((result as Record<string, unknown>).message_id);
+          runState.telegramMessageId = msgId;
           state.writeRunState(runsDir, runId, runState);
           api.logger.info(
-            `[harness-enforcer] Progress bar sent: msgId=${result.messageId}`,
+            `[harness-enforcer] Progress bar sent via direct API: msgId=${msgId}`,
           );
         } else {
           api.logger.warn(
-            `[harness-enforcer] sendProgressBar: no messageId in result`,
+            `[harness-enforcer] sendProgressBar: direct API returned no message_id`,
           );
         }
       } catch (err) {
@@ -239,7 +338,33 @@ export default {
       }
     }
 
-    function buildTimerProgressBar(
+    /** Send a Telegram alert message (for watchdog/heartbeat/auto-cancel). Uses runtime API with direct API fallback. */
+    async function sendTelegramAlert(
+      chatId: string,
+      text: string,
+      threadId?: string,
+    ): Promise<void> {
+      try {
+        const fn = api.runtime?.channel?.telegram?.sendMessageTelegram;
+        if (fn && typeof fn === 'function') {
+          await fn(chatId, text, {
+            ...(threadId ? { messageThreadId: parseInt(threadId, 10) } : {}),
+          });
+          return;
+        }
+        // Fallback: direct API
+        const botToken = getTelegramBotToken();
+        if (!botToken) return;
+        const body: Record<string, unknown> = { chat_id: chatId, text };
+        if (threadId) body.message_thread_id = parseInt(threadId, 10);
+        await telegramApiCall(botToken, "sendMessage", body);
+      } catch (err) {
+        api.logger.warn(
+          `[harness-enforcer] Alert send failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
       active: { runId: string; state: state.RunState },
     ): string {
       const checkpoints = state.readCheckpoints(runsDir, active.runId);
@@ -333,10 +458,9 @@ export default {
       const alertChatId =
         active.state.telegramChatId ?? process.env.HARNESS_ALERT_CHAT_ID ?? "";
       try {
-        await api.runtime.channel.telegram.sendMessageTelegram(
+        await sendTelegramAlert(
           alertChatId,
           `⚠️ **Harness Auto-Cancel**\nRun: ${active.state.taskDescription}\nReason: ${reason}\nDuration: ${Math.round(elapsed / 60)}min`,
-          {},
         );
       } catch {
         // Best effort
@@ -590,12 +714,10 @@ export default {
             const alertChat = activeForWatchdog.state.telegramChatId ?? process.env.HARNESS_ALERT_CHAT_ID ?? "";
             const threadId = activeForWatchdog.state.telegramThreadId;
             try {
-              await api.runtime.channel.telegram.sendMessageTelegram(
+              await sendTelegramAlert(
                 alertChat,
                 `🔄 **Hallucination Loop Detected**\n${hallucination}\nRun: ${activeForWatchdog.state.taskDescription}\n\n_Auto-correction active: next identical call will be blocked._`,
-                {
-                  ...(threadId ? { messageThreadId: parseInt(threadId, 10) } : {}),
-                },
+                threadId,
               );
               api.logger.info(`[harness-enforcer] Telegram hallucination alert sent`);
             } catch (err) {
@@ -612,10 +734,9 @@ export default {
           if (canSendAlert("errorBurst")) {
             const alertChat = activeForWatchdog.state.telegramChatId ?? process.env.HARNESS_ALERT_CHAT_ID ?? "";
             try {
-              await api.runtime.channel.telegram.sendMessageTelegram(
+              await sendTelegramAlert(
                 alertChat,
                 `⚠️ **Watchdog Alert**\n${errorBurst}\nRun: ${activeForWatchdog.state.taskDescription}`,
-                {},
               );
             } catch { /* best effort */ }
           }
@@ -634,10 +755,9 @@ export default {
           if (canSendAlert("stall")) {
             const alertChat = activeForWatchdog.state.telegramChatId ?? process.env.HARNESS_ALERT_CHAT_ID ?? "";
             try {
-              await api.runtime.channel.telegram.sendMessageTelegram(
+              await sendTelegramAlert(
                 alertChat,
                 `⏸ **Progress Stalled**\n${stall}\nRun: ${activeForWatchdog.state.taskDescription}\n\n_${PROGRESS_STALL_THRESHOLD} checkpoints with no new features completed._`,
-              {},
             );
           } catch { /* best effort */ }
           }
@@ -666,12 +786,11 @@ export default {
             const alertChat = activeForWatchdog.state.telegramChatId ?? process.env.HARNESS_ALERT_CHAT_ID ?? "";
             const itemDesc = currentItem?.description ?? activeForWatchdog.state.currentContractItemId;
             try {
-              await api.runtime.channel.telegram.sendMessageTelegram(
+              await sendTelegramAlert(
                 alertChat,
                 `\u23f0 **Item Timeout**\n[${activeForWatchdog.state.currentContractItemId}] ${itemDesc}\n` +
                 `Stuck for ${Math.round(sinceItemStart / 60000)} min (limit: ${Math.round(itemTimeout / 60000)} min)\n` +
                 `Consider: skip, split, or try a different approach.`,
-                {},
               );
             } catch { /* best effort */ }
           }
@@ -753,7 +872,7 @@ export default {
 
         const progressBar = payload.progressBar as string;
 
-        api.logger.debug(
+        api.logger.info(
           `[harness-enforcer] Progress bar: tool=${event.toolName} chatId=${payload.telegramChatId ?? 'none'}`,
         );
 
@@ -796,13 +915,13 @@ export default {
         // Resolve which messageId to use: payload > runState > none
         const resolvedMsgId = messageId ?? runState?.telegramMessageId;
 
-        api.logger.debug(
+        api.logger.info(
           `[harness-enforcer] Progress bar resolve: msgId=${resolvedMsgId ?? 'null'} hasState=${!!runState}`,
         );
 
         if (!resolvedMsgId) {
           // No existing message — send a new one
-          api.logger.debug(
+          api.logger.info(
             `[harness-enforcer] Sending new progress bar: chatId=${chatId} runId=${resolvedRunId ?? 'none'}`,
           );
           if (runState && resolvedRunId) {
@@ -997,12 +1116,10 @@ export default {
           if (sinceLastCp > HEARTBEAT_INTERVAL_MS) {
             const threadId = active.state.telegramThreadId;
             try {
-              await api.runtime.channel.telegram.sendMessageTelegram(
-                active.state.telegramChatId,
+              await sendTelegramAlert(
+                active.state.telegramChatId!,
                 heartbeatMsg,
-                {
-                  ...(threadId ? { messageThreadId: parseInt(threadId, 10) } : {}),
-                },
+                threadId,
               );
             } catch { /* best effort */ }
           }
