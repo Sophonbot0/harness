@@ -1,0 +1,12 @@
+{
+  "task_id": "search-009",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 21,
+  "dod_passed": 21,
+  "tests_passed": 38,
+  "tests_total": 38,
+  "notes": "Negative reqs: must not swallow exceptions, must not log PII in error context."
+}

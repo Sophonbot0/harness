@@ -1,0 +1,12 @@
+{
+  "task_id": "search-012",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 17,
+  "dod_passed": 17,
+  "tests_passed": 28,
+  "tests_total": 28,
+  "notes": "Bug hunt \u2014 verify commands targeted each specific bug reproduction."
+}

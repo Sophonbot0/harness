@@ -1,0 +1,12 @@
+{
+  "task_id": "search-005",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 16,
+  "dod_passed": 16,
+  "tests_passed": 16,
+  "tests_total": 16,
+  "notes": "DB migration \u2014 verify tested rollback explicitly."
+}

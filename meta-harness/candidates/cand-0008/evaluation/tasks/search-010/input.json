@@ -1,0 +1,10 @@
+{
+  "id": "search-010",
+  "name": "Configuration System",
+  "category": "feature",
+  "difficulty": "medium",
+  "description": "Build a configuration system that loads from: defaults \u2192 config file (YAML) \u2192 environment variables \u2192 CLI flags. Support nested keys, type coercion, and validation with helpful error messages.",
+  "scaffold": "fixtures/search-010-config-system/",
+  "expected_dod_count": 10,
+  "expected_features": 4
+}

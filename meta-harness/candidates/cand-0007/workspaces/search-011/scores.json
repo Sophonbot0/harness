@@ -1,0 +1,12 @@
+{
+  "task_id": "search-011",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 18,
+  "dod_passed": 18,
+  "tests_passed": 23,
+  "tests_total": 23,
+  "notes": "URL shortener \u2014 verify commands tested each endpoint + analytics."
+}

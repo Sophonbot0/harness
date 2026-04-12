@@ -1,17 +1,18 @@
 {
-  "last_iteration": "2026-04-11T15:21:58Z",
-  "iteration_number": 3,
-  "next_cand_id": 7,
+  "last_iteration": "2026-04-12T15:18:37Z",
+  "iteration_number": 4,
+  "next_cand_id": 9,
   "running": false,
   "baseline": {
-    "id": "cand-0006",
-    "name": "focused-adversary",
-    "composite": 0.959,
-    "total_dod": 192,
-    "promoted_at": "2026-04-11T15:21:58Z"
+    "id": "cand-0008",
+    "name": "deep-planner",
+    "composite": 0.975,
+    "total_dod": 237,
+    "promoted_at": "2026-04-12T15:18:37Z"
   },
   "consecutive_no_improvement": 0,
   "schedule": "2x/day",
+  "current_candidates": [],
   "history": [
     {
       "iteration": 1,
@@ -36,6 +37,14 @@
       "winner": "cand-0006",
       "promoted": true,
       "composite": 0.959
+    },
+    {
+      "iteration": 4,
+      "date": "2026-04-12",
+      "candidates": ["cand-0007", "cand-0008"],
+      "winner": "cand-0008",
+      "promoted": true,
+      "composite": 0.975
     }
   ]
 }

@@ -1,0 +1,23 @@
+{
+  "id": "cand-0007",
+  "name": "verify-first",
+  "parent": "cand-0006",
+  "iteration": 4,
+  "created": "2026-04-12T15:09:00Z",
+  "hypothesis": "The gap between DoD items and test count (192 vs 268) suggests verification is loose — tests exist but don't map 1:1 to DoD. By requiring the planner to embed explicit verify commands in every DoD item, and requiring the generator to run self-verification before declaring done, we tighten the loop. This should: (1) push eval_grade to 1.0 (currently 0.9958), (2) improve DoD/test ratio toward 0.85+, (3) reduce evaluator time since verification is pre-done.",
+  "changes": {
+    "planner": "Each DoD item now requires a verify command: '- [ ] [criterion] | verify: `[shell command]`'. Coverage matrix gains a 'Verify' column. Max 4 DoD/feature unchanged.",
+    "generator": "After implementing each feature, must run ALL verify commands from the DoD and paste output. If any fail, fix before moving to next feature. Self-verification gate added.",
+    "adversary": "Same as cand-0006 (edge-focused, max 6 MAJOR+, suggests missing DoD).",
+    "evaluator": "Runs the same verify commands from DoD items. If generator already pasted passing output AND code hasn't changed, can fast-track (but must still spot-check 30%). Bonus checks unchanged.",
+    "skill": "Same workflow. Generator timeout increased 40→45 min to accommodate self-verification. Evaluator timeout reduced 22→18 min (less work if generator self-verified)."
+  },
+  "expected_metrics": {
+    "pass_rate": 1.0,
+    "avg_dod_per_task": "16-18",
+    "avg_tests_per_task": "18-22",
+    "dod_test_ratio": "0.80-0.90",
+    "eval_grade": 1.0,
+    "token_cost_vs_parent": "~95%"
+  }
+}

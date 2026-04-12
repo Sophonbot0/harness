@@ -1,0 +1,10 @@
+{
+  "id": "search-004",
+  "name": "CLI Tool with Subcommands",
+  "category": "feature",
+  "difficulty": "medium",
+  "description": "Build a CLI tool with 3 subcommands: 'init' (create config file), 'run' (execute pipeline), 'status' (show current state). Include --help, --verbose flags, and proper exit codes.",
+  "scaffold": "fixtures/search-004-cli-tool/",
+  "expected_dod_count": 10,
+  "expected_features": 4
+}

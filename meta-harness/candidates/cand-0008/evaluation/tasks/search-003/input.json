@@ -1,0 +1,10 @@
+{
+  "id": "search-003",
+  "name": "Refactor to Strategy Pattern",
+  "category": "refactor",
+  "difficulty": "medium",
+  "description": "Refactor a payment processing module from a giant if/else chain to the Strategy pattern. Support credit card, PayPal, and bank transfer. Maintain backwards compatibility.",
+  "scaffold": "fixtures/search-003-strategy-refactor/",
+  "expected_dod_count": 8,
+  "expected_features": 3
+}

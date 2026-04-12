@@ -1,0 +1,12 @@
+{
+  "task_id": "search-003",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 21,
+  "dod_passed": 21,
+  "tests_passed": 28,
+  "tests_total": 28,
+  "notes": "Negative reqs: must not break existing API, must not leak strategy internals."
+}

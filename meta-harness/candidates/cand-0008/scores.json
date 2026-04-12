@@ -1,0 +1,141 @@
+{
+  "candidate_id": "cand-0008",
+  "task_count": 12,
+  "passed": 12,
+  "total_dod": 237,
+  "total_tests": 326,
+  "task_results": [
+    {
+      "task_id": "search-001",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 16,
+      "dod_passed": 16,
+      "tests_passed": 16,
+      "tests_total": 16
+    },
+    {
+      "task_id": "search-002",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 20,
+      "dod_passed": 20,
+      "tests_passed": 26,
+      "tests_total": 26
+    },
+    {
+      "task_id": "search-003",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 21,
+      "dod_passed": 21,
+      "tests_passed": 28,
+      "tests_total": 28
+    },
+    {
+      "task_id": "search-004",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 15,
+      "dod_passed": 15,
+      "tests_passed": 22,
+      "tests_total": 22
+    },
+    {
+      "task_id": "search-005",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 19,
+      "dod_passed": 19,
+      "tests_passed": 19,
+      "tests_total": 19
+    },
+    {
+      "task_id": "search-006",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 21,
+      "dod_passed": 21,
+      "tests_passed": 24,
+      "tests_total": 24
+    },
+    {
+      "task_id": "search-007",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A",
+      "rounds": 2,
+      "dod_total": 22,
+      "dod_passed": 20,
+      "tests_passed": 24,
+      "tests_total": 26
+    },
+    {
+      "task_id": "search-008",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 19,
+      "dod_passed": 19,
+      "tests_passed": 28,
+      "tests_total": 28
+    },
+    {
+      "task_id": "search-009",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 21,
+      "dod_passed": 21,
+      "tests_passed": 38,
+      "tests_total": 38
+    },
+    {
+      "task_id": "search-010",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 20,
+      "dod_passed": 20,
+      "tests_passed": 35,
+      "tests_total": 35
+    },
+    {
+      "task_id": "search-011",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A",
+      "rounds": 2,
+      "dod_total": 24,
+      "dod_passed": 22,
+      "tests_passed": 27,
+      "tests_total": 30
+    },
+    {
+      "task_id": "search-012",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 19,
+      "dod_passed": 19,
+      "tests_passed": 34,
+      "tests_total": 34
+    }
+  ]
+}

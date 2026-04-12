@@ -1,0 +1,23 @@
+{
+  "id": "cand-0008",
+  "name": "deep-planner",
+  "parent": "cand-0006",
+  "iteration": 4,
+  "created": "2026-04-12T15:09:00Z",
+  "hypothesis": "The biggest composite gains came from DoD count increases (136→181→192). The planner currently caps at 4 DoD/feature with max 5 features = theoretical max 20/task. Actual avg is 16.0, meaning some features only get 2-3 DoD. By raising cap to 5 DoD/feature and adding mandatory 'negative requirements' (what must NOT happen — errors, side effects, regressions), we directly increase DoD breadth. The adversary's 'missing DoD' suggestions show the planner consistently misses negative cases. Baking those into the planner should push total DoD to 210+ and reduce adversary's workload.",
+  "changes": {
+    "planner": "DoD cap raised 4→5 per feature. New mandatory section: 'Negative Requirements' — at least 2 per feature stating what must NOT happen (e.g., 'must not silently drop errors', 'must not leak memory on repeated calls'). These become DoD items.",
+    "generator": "Same as cand-0006.",
+    "adversary": "Same as cand-0006 but with instruction: if planner's negative requirements already cover an edge case, skip it and go deeper.",
+    "evaluator": "Same as cand-0006. Negative DoD items verified same as positive ones.",
+    "skill": "Same workflow and timeouts. Planner timeout increased 20→25 min for deeper analysis."
+  },
+  "expected_metrics": {
+    "pass_rate": 1.0,
+    "avg_dod_per_task": "17-20",
+    "avg_tests_per_task": "22-28",
+    "dod_test_ratio": "0.72-0.78",
+    "eval_grade": 1.0,
+    "token_cost_vs_parent": "~105%"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "task_id": "search-005",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 19,
+  "dod_passed": 19,
+  "tests_passed": 19,
+  "tests_total": 19,
+  "notes": "Negative reqs: must not lose data on partial migration, must not timeout on 100K rows."
+}

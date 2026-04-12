@@ -1,0 +1,22 @@
+{
+  "timestamp": "2026-04-11T15:21:58.492205+00:00Z",
+  "promoted": true,
+  "promoted_candidate": "cand-0006",
+  "reason": "Candidate cand-0006 improves over baseline: composite 0.9133 \u2192 0.9590 (+0.0457), DoD/task 11.3 \u2192 16.0",
+  "scores": {
+    "task_count": 12,
+    "passed": 12,
+    "pass_rate": 1.0,
+    "eval_grade": 0.9958,
+    "avg_rounds": 1.0,
+    "avg_dod_per_task": 16.0,
+    "total_dod": 192,
+    "total_tests": 268,
+    "avg_tests_per_task": 22.3,
+    "retries": 0,
+    "timeouts": 0,
+    "stuck_rate": 0.0,
+    "composite": 0.959
+  },
+  "dry_run": false
+}

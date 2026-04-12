@@ -1,0 +1,10 @@
+{
+  "id": "search-009",
+  "name": "Error Handling Overhaul",
+  "category": "refactor",
+  "difficulty": "medium",
+  "description": "Replace all bare try/except blocks with proper error handling: custom exception classes, structured error responses, error logging with context, and a global error handler.",
+  "scaffold": "fixtures/search-009-error-handling/",
+  "expected_dod_count": 9,
+  "expected_features": 4
+}

@@ -1,0 +1,12 @@
+{
+  "task_id": "search-006",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 18,
+  "dod_passed": 18,
+  "tests_passed": 18,
+  "tests_total": 18,
+  "notes": "Rate limiter \u2014 verify caught Retry-After header issue in self-check."
+}

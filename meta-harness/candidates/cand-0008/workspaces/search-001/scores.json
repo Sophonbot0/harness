@@ -1,0 +1,12 @@
+{
+  "task_id": "search-001",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 16,
+  "dod_passed": 16,
+  "tests_passed": 16,
+  "tests_total": 16,
+  "notes": "Deep planner: 2 negative reqs (must not mutate input, must not drop duplicates)."
+}

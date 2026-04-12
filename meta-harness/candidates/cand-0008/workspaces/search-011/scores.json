@@ -1,0 +1,12 @@
+{
+  "task_id": "search-011",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A",
+  "rounds": 2,
+  "dod_total": 24,
+  "dod_passed": 22,
+  "tests_passed": 27,
+  "tests_total": 30,
+  "notes": "Sprint-sized: 2 negative reqs failed (collision under load, analytics race). Fixed 2/4 negative failures in round 2."
+}

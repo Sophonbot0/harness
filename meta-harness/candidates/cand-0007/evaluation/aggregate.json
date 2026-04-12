@@ -1,0 +1,150 @@
+{
+  "run_id": "2026-04-12T15-15-31",
+  "candidate_dir": "/Users/jbelo/.openclaw/skills/harness/meta-harness/candidates/cand-0007",
+  "task_set": "/Users/jbelo/.openclaw/skills/harness/meta-harness/config/search-set.json",
+  "status": "completed",
+  "task_count": 12,
+  "pending_count": 0,
+  "validation": {
+    "candidate_dir": "/Users/jbelo/.openclaw/skills/harness/meta-harness/candidates/cand-0007",
+    "is_valid": true,
+    "issues": [],
+    "issue_count": 0,
+    "critical_count": 0,
+    "warning_count": 0
+  },
+  "scores": {
+    "task_count": 12,
+    "passed": 0,
+    "pass_rate": 0.0,
+    "eval_grade": 0.0,
+    "avg_rounds": 0.0,
+    "avg_time_seconds": 0.1,
+    "stuck_rate": 0.0,
+    "token_cost": 0.0,
+    "task_results": [
+      {
+        "task_id": "search-001",
+        "status": "dry_run",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.1,
+        "total_tokens": 0,
+        "dry_run": true
+      },
+      {
+        "task_id": "search-002",
+        "status": "dry_run",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.1,
+        "total_tokens": 0,
+        "dry_run": true
+      },
+      {
+        "task_id": "search-003",
+        "status": "dry_run",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.1,
+        "total_tokens": 0,
+        "dry_run": true
+      },
+      {
+        "task_id": "search-004",
+        "status": "dry_run",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.1,
+        "total_tokens": 0,
+        "dry_run": true
+      },
+      {
+        "task_id": "search-005",
+        "status": "dry_run",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.1,
+        "total_tokens": 0,
+        "dry_run": true
+      },
+      {
+        "task_id": "search-006",
+        "status": "dry_run",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.1,
+        "total_tokens": 0,
+        "dry_run": true
+      },
+      {
+        "task_id": "search-007",
+        "status": "dry_run",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.1,
+        "total_tokens": 0,
+        "dry_run": true
+      },
+      {
+        "task_id": "search-008",
+        "status": "dry_run",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.1,
+        "total_tokens": 0,
+        "dry_run": true
+      },
+      {
+        "task_id": "search-009",
+        "status": "dry_run",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.1,
+        "total_tokens": 0,
+        "dry_run": true
+      },
+      {
+        "task_id": "search-010",
+        "status": "dry_run",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.1,
+        "total_tokens": 0,
+        "dry_run": true
+      },
+      {
+        "task_id": "search-011",
+        "status": "dry_run",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.1,
+        "total_tokens": 0,
+        "dry_run": true
+      },
+      {
+        "task_id": "search-012",
+        "status": "dry_run",
+        "pass": false,
+        "eval_grade": "N/A",
+        "rounds": 0,
+        "elapsed_seconds": 0.1,
+        "total_tokens": 0,
+        "dry_run": true
+      }
+    ],
+    "composite": 0.325
+  },
+  "evaluated_at": "2026-04-12T15:15:31.376547+00:00Z"
+}

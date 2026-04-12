@@ -1,0 +1,10 @@
+{
+  "id": "search-006",
+  "name": "Rate Limiter Middleware",
+  "category": "feature",
+  "difficulty": "medium",
+  "description": "Implement a sliding-window rate limiter middleware. Support per-IP and per-API-key limits. Return 429 with Retry-After header. Include bypass for health check endpoints.",
+  "scaffold": "fixtures/search-006-rate-limiter/",
+  "expected_dod_count": 8,
+  "expected_features": 3
+}

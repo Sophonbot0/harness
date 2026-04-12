@@ -1,0 +1,12 @@
+{
+  "task_id": "search-009",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 18,
+  "dod_passed": 18,
+  "tests_passed": 30,
+  "tests_total": 30,
+  "notes": "Error handling \u2014 verify commands tested each exception path."
+}

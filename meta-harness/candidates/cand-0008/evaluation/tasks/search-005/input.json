@@ -1,0 +1,10 @@
+{
+  "id": "search-005",
+  "name": "Database Migration Script",
+  "category": "feature",
+  "difficulty": "medium",
+  "description": "Write a database migration that adds a 'tags' column (JSON array), migrates existing 'category' data into tags, and provides a rollback script. Must handle tables with 100K+ rows.",
+  "scaffold": "fixtures/search-005-db-migration/",
+  "expected_dod_count": 7,
+  "expected_features": 3
+}

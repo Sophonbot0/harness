@@ -1,0 +1,10 @@
+{
+  "id": "search-007",
+  "name": "Multi-File Feature with Tests",
+  "category": "feature",
+  "difficulty": "hard",
+  "description": "Add a notification system: create NotificationService, EmailProvider, WebhookProvider, a notification queue, and a retry mechanism. Include unit tests for each component and an integration test.",
+  "scaffold": "fixtures/search-007-notifications/",
+  "expected_dod_count": 15,
+  "expected_features": 5
+}

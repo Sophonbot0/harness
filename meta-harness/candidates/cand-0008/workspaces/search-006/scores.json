@@ -1,0 +1,12 @@
+{
+  "task_id": "search-006",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 21,
+  "dod_passed": 21,
+  "tests_passed": 24,
+  "tests_total": 24,
+  "notes": "Negative reqs: must not rate-limit health checks, must not leak counter state."
+}

@@ -1,0 +1,12 @@
+{
+  "task_id": "search-010",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 20,
+  "dod_passed": 20,
+  "tests_passed": 35,
+  "tests_total": 35,
+  "notes": "Negative reqs: must not silently ignore invalid types, must not allow circular refs."
+}

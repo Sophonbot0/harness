@@ -1,0 +1,12 @@
+{
+  "task_id": "search-001",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 14,
+  "dod_passed": 14,
+  "tests_passed": 14,
+  "tests_total": 14,
+  "notes": "Verify-first: embedded pytest verify in each DoD item. Self-verified before eval."
+}
