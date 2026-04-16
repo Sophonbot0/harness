@@ -39,6 +39,7 @@ export interface Checkpoint {
   summary: string;
   verificationLog?: string;
   contextSnapshot?: ContextSnapshot;
+  gate?: "lint" | "unit" | "integration" | "e2e";
 }
 
 /** Cross-session context preservation — survives crashes and compaction */

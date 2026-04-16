@@ -17,6 +17,7 @@ import * as state from "./src/state.js";
 
 const testDir = path.join(os.tmpdir(), `harness-test-${Date.now()}`);
 const runsDir = path.join(testDir, "runs");
+const sessionCtx = { currentSessionKey: "test:session:smoke" as string | undefined };
 
 // Create a fake plan.md in a valid ~/.openclaw path for sanitizePath to accept
 const planDir = path.join(os.homedir(), ".openclaw", "harness-enforcer", "_test");
@@ -49,7 +50,7 @@ async function main() {
 
   // --- Test 1: harness_start ---
   console.log("1. harness_start");
-  const startTool = createHarnessStartTool(runsDir);
+  const startTool = createHarnessStartTool(runsDir, sessionCtx);
   const startResult = await startTool.execute("test-1", {
     planPath,
     taskDescription: "Smoke test run",
@@ -66,6 +67,7 @@ async function main() {
   const runDir = path.join(runsDir, runId);
   assert("run-state.json exists", fs.existsSync(path.join(runDir, "run-state.json")));
   assert("dod-items.json exists", fs.existsSync(path.join(runDir, "dod-items.json")));
+  assert("run-summary.json exists", fs.existsSync(path.join(runDir, "run-summary.json")));
 
   // --- Test 2: harness_start rejects duplicate ---
   console.log("\n2. harness_start (duplicate rejection)");
@@ -78,7 +80,7 @@ async function main() {
 
   // --- Test 3: harness_checkpoint ---
   console.log("\n3. harness_checkpoint");
-  const cpTool = createHarnessCheckpointTool(runsDir);
+  const cpTool = createHarnessCheckpointTool(runsDir, sessionCtx);
   const cpResult = await cpTool.execute("test-3", {
     phase: "build",
     completedFeatures: ["Feature A"],
@@ -94,7 +96,7 @@ async function main() {
 
   // --- Test 4: harness_status ---
   console.log("\n4. harness_status");
-  const statusTool = createHarnessStatusTool(runsDir);
+  const statusTool = createHarnessStatusTool(runsDir, sessionCtx);
   const statusResult = await statusTool.execute("test-4", {});
   const statusData = (statusResult as any).details;
   assert("Shows active run", statusData?.status === "active");
@@ -104,13 +106,16 @@ async function main() {
 
   // --- Test 5: harness_submit (should FAIL — no eval report) ---
   console.log("\n5. harness_submit (rejection test)");
-  const submitTool = createHarnessSubmitTool(runsDir);
+  const submitTool = createHarnessSubmitTool(runsDir, sessionCtx);
   const submitResult = await submitTool.execute("test-5", {
     evalReportPath: path.join(planDir, "nonexistent-eval.md"),
   });
   const submitData = (submitResult as any).details;
   assert("Rejects without eval report", submitData?.delivered === false);
   assert("Lists errors", Array.isArray(submitData?.errors) && submitData.errors.length > 0);
+  const failureSummary = state.readRunSummary(runsDir, runId);
+  assert("Failure summary written", failureSummary?.finalOutcome === "iteration_required_artifact_missing");
+  assert("Failure summary classifies environment failure", failureSummary?.failureDomain === "environment");
 
   // --- Test 6: harness_submit (should PASS with valid eval) ---
   console.log("\n6. harness_submit (success test)");
@@ -123,6 +128,15 @@ async function main() {
   - [x] Second criterion
   - [x] Already done criterion
 `);
+  // Mark all contract items complete so submit can pass
+  await cpTool.execute("test-6a", {
+    phase: "eval",
+    completedFeatures: ["First criterion", "Second criterion", "Already done criterion"],
+    pendingFeatures: [],
+    blockers: [],
+    summary: "All contract items complete and ready for final submit",
+  });
+
   // Create passing eval report
   const evalPath = path.join(planDir, "eval-report.md");
   fs.writeFileSync(evalPath, `# Evaluation Report
@@ -138,10 +152,13 @@ All criteria verified.
   assert("Delivers successfully", passData?.delivered === true);
   assert("Shows PASS grade", passData?.evalGrade === "PASS");
   assert("delivery.json exists", fs.existsSync(path.join(runDir, "delivery.json")));
+  const successSummary = state.readRunSummary(runsDir, runId);
+  assert("Success summary written", successSummary?.finalOutcome === "delivered");
+  assert("Success summary has no failure domain", successSummary?.failureDomain === "none");
 
   // --- Test 7: harness_reset (no active run) ---
   console.log("\n7. harness_reset (no active run)");
-  const resetTool = createHarnessResetTool(runsDir);
+  const resetTool = createHarnessResetTool(runsDir, sessionCtx);
   const resetNoRun = await resetTool.execute("test-7a", {});
   const resetNoRunData = (resetNoRun as any).details;
   assert("Returns message when no active run", resetNoRunData?.message?.includes("No active"));

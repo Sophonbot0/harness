@@ -5,6 +5,10 @@
   "type": "module",
   "main": "index.ts",
   "license": "MIT",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "smoke": "tsx test-smoke.ts"
+  },
   "files": [
     "index.ts",
     "src/**/*.ts",
@@ -13,6 +17,11 @@
   ],
   "peerDependencies": {
     "openclaw": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.2"
   },
   "openclaw": {
     "extensions": [

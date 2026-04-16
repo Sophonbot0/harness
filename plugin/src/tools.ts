@@ -524,9 +524,9 @@ export function createHarnessCheckpointTool(runsDir: string, sessionCtx: Session
           const checkpoints = state.readCheckpoints(runsDir, runId);
           let highestGateIndex = -1;
           for (const cp of checkpoints) {
-            const cpGate = (cp as Record<string, unknown>).gate as string | undefined;
+            const cpGate = cp.gate;
             if (cpGate) {
-              const idx = GATE_ORDER.indexOf(cpGate as typeof GATE_ORDER[number]);
+              const idx = GATE_ORDER.indexOf(cpGate);
               if (idx > highestGateIndex) highestGateIndex = idx;
             }
           }
