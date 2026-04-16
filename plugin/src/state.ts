@@ -69,6 +69,84 @@ export interface Delivery {
   checkpointCount: number;
 }
 
+export type PhaseExecutionStatus =
+  | "not_started"
+  | "in_progress"
+  | "completed"
+  | "failed"
+  | "blocked";
+
+export type RunFailureDomain = "none" | "harness" | "environment" | "user" | "unknown";
+
+export interface RunSummary {
+  runId: string;
+  taskDescription: string;
+  startedAt: string;
+  updatedAt: string;
+  endedAt?: string;
+  runStatus: RunState["status"];
+  phase: string;
+  round: number;
+  plannerStatus: PhaseExecutionStatus;
+  generatorStatus: PhaseExecutionStatus;
+  adversaryStatus: PhaseExecutionStatus;
+  evaluatorStatus: PhaseExecutionStatus;
+  finalOutcome: string;
+  failureDomain: RunFailureDomain;
+  failureCode?: string;
+  summary: string;
+  metrics: {
+    elapsedSeconds: number;
+    checkpointCount: number;
+    dodTotal: number;
+    dodCompleted: number;
+    featureTotal: number;
+    featurePassed: number;
+    featureFailed: number;
+    featurePending: number;
+    contractTotal: number;
+    contractPassed: number;
+    contractFailed: number;
+    contractPending: number;
+    contractSkipped: number;
+  };
+  artifacts: {
+    runDir: string;
+    runStatePath: string;
+    checkpointsPath: string;
+    planPath: string;
+    contractPath: string;
+    progressPath: string;
+    deliveryPath: string;
+    evalReportPath?: string;
+    challengeReportPath?: string;
+  };
+  latestCheckpoint?: {
+    timestamp: string;
+    phase: string;
+    summary: string;
+    blockerCount: number;
+  };
+  errors: string[];
+  warnings: string[];
+}
+
+export interface RunSummaryOptions {
+  evalReportPath?: string;
+  challengeReportPath?: string;
+  finalOutcome?: string;
+  failureDomain?: RunFailureDomain;
+  failureCode?: string;
+  summary?: string;
+  endedAt?: string;
+  errors?: string[];
+  warnings?: string[];
+  plannerStatus?: PhaseExecutionStatus;
+  generatorStatus?: PhaseExecutionStatus;
+  adversaryStatus?: PhaseExecutionStatus;
+  evaluatorStatus?: PhaseExecutionStatus;
+}
+
 /** A plan within a multi-phase manifest */
 export interface ManifestPlan {
   phase: number;           // 1-based sequence number
@@ -508,6 +586,184 @@ function readDelivery(runsDir: string, runId: string): Delivery | null {
   if (!fs.existsSync(dp)) return null;
   const content = fs.readFileSync(dp, "utf-8");
   return safeParseJson<Delivery>(content, dp);
+}
+
+function derivePhaseStatuses(
+  runState: RunState,
+  checkpoints: Checkpoint[],
+  finalOutcome: string,
+): Pick<RunSummary, "plannerStatus" | "generatorStatus" | "adversaryStatus" | "evaluatorStatus"> {
+  const observed = new Set(checkpoints.map((cp) => cp.phase.toLowerCase()));
+  const currentPhase = runState.phase.toLowerCase();
+
+  let plannerStatus: PhaseExecutionStatus = "not_started";
+  let generatorStatus: PhaseExecutionStatus = "not_started";
+  let adversaryStatus: PhaseExecutionStatus = "not_started";
+  let evaluatorStatus: PhaseExecutionStatus = "not_started";
+
+  if (runState.status === "completed") {
+    return {
+      plannerStatus: "completed",
+      generatorStatus: "completed",
+      adversaryStatus: "completed",
+      evaluatorStatus: "completed",
+    };
+  }
+
+  if (currentPhase === "plan") {
+    plannerStatus = "in_progress";
+  } else if (observed.has("plan") || ["build", "challenge", "eval", "iteration"].includes(currentPhase)) {
+    plannerStatus = "completed";
+  }
+
+  if (currentPhase === "build") {
+    generatorStatus = "in_progress";
+  } else if (observed.has("build") || ["challenge", "eval", "iteration"].includes(currentPhase)) {
+    generatorStatus = "completed";
+  }
+
+  if (currentPhase === "challenge") {
+    adversaryStatus = "in_progress";
+  } else if (observed.has("challenge") || ["eval", "iteration"].includes(currentPhase)) {
+    adversaryStatus = "completed";
+  }
+
+  if (currentPhase === "eval") {
+    evaluatorStatus = "in_progress";
+  } else if (observed.has("eval") || observed.has("iteration")) {
+    evaluatorStatus = "completed";
+  }
+
+  if (runState.status === "cancelled") {
+    if (currentPhase === "plan") plannerStatus = "blocked";
+    if (currentPhase === "build") generatorStatus = "blocked";
+    if (currentPhase === "challenge") adversaryStatus = "blocked";
+    if (currentPhase === "eval") evaluatorStatus = "blocked";
+  }
+
+  if (runState.status === "failed") {
+    if (currentPhase === "plan") plannerStatus = "failed";
+    if (currentPhase === "build") generatorStatus = "failed";
+    if (currentPhase === "challenge") adversaryStatus = "failed";
+    if (currentPhase === "eval") evaluatorStatus = "failed";
+  }
+
+  if (finalOutcome.includes("iteration_required") || finalOutcome.includes("eval_failed")) {
+    evaluatorStatus = "failed";
+    if (runState.status === "active" && currentPhase === "build") {
+      generatorStatus = "in_progress";
+    }
+  }
+
+  return {
+    plannerStatus,
+    generatorStatus,
+    adversaryStatus,
+    evaluatorStatus,
+  };
+}
+
+export function writeRunSummary(
+  runsDir: string,
+  runId: string,
+  runState: RunState,
+  options: RunSummaryOptions = {},
+): RunSummary {
+  const runDir = getRunDir(runsDir, runId);
+  ensureDir(runDir);
+
+  const checkpoints = readCheckpoints(runsDir, runId);
+  const latestCheckpoint = checkpoints.length > 0 ? checkpoints[checkpoints.length - 1] : null;
+  const dodItems = readDodItems(runsDir, runId);
+  const features = readFeatures(runsDir, runId);
+  const contractItems = readContract(runsDir, runId);
+  const delivery = readDelivery(runsDir, runId);
+  const nowIso = new Date().toISOString();
+  const updatedAt = options.endedAt
+    ?? delivery?.deliveredAt
+    ?? latestCheckpoint?.timestamp
+    ?? runState.lastCheckpointAt
+    ?? nowIso;
+  const elapsedSeconds = delivery?.elapsedSeconds
+    ?? Math.max(0, Math.round((Date.now() - new Date(runState.startedAt).getTime()) / 1000));
+
+  const finalOutcome = options.finalOutcome
+    ?? (runState.status === "completed"
+      ? "delivered"
+      : runState.status === "cancelled"
+        ? "cancelled"
+        : runState.status === "failed"
+          ? "failed"
+          : "active");
+
+  const derivedStatuses = derivePhaseStatuses(runState, checkpoints, finalOutcome);
+
+  const summary: RunSummary = {
+    runId,
+    taskDescription: runState.taskDescription,
+    startedAt: runState.startedAt,
+    updatedAt,
+    ...(options.endedAt ? { endedAt: options.endedAt } : {}),
+    runStatus: runState.status,
+    phase: runState.phase,
+    round: runState.round,
+    plannerStatus: options.plannerStatus ?? derivedStatuses.plannerStatus,
+    generatorStatus: options.generatorStatus ?? derivedStatuses.generatorStatus,
+    adversaryStatus: options.adversaryStatus ?? derivedStatuses.adversaryStatus,
+    evaluatorStatus: options.evaluatorStatus ?? derivedStatuses.evaluatorStatus,
+    finalOutcome,
+    failureDomain: options.failureDomain ?? (runState.status === "completed" ? "none" : runState.status === "cancelled" ? "user" : runState.status === "failed" ? "unknown" : "none"),
+    ...(options.failureCode ? { failureCode: options.failureCode } : {}),
+    summary: options.summary ?? latestCheckpoint?.summary ?? `Harness run is ${runState.status}.`,
+    metrics: {
+      elapsedSeconds,
+      checkpointCount: checkpoints.length,
+      dodTotal: dodItems.length,
+      dodCompleted: dodItems.filter((item) => item.checked).length,
+      featureTotal: features.length,
+      featurePassed: features.filter((feature) => feature.status === "passed").length,
+      featureFailed: features.filter((feature) => feature.status === "failed").length,
+      featurePending: features.filter((feature) => feature.status === "pending" || feature.status === "in_progress").length,
+      contractTotal: contractItems.length,
+      contractPassed: contractItems.filter((item) => item.status === "passed").length,
+      contractFailed: contractItems.filter((item) => item.status === "failed").length,
+      contractPending: contractItems.filter((item) => item.status === "pending" || item.status === "in_progress").length,
+      contractSkipped: contractItems.filter((item) => item.status === "skipped").length,
+    },
+    artifacts: {
+      runDir,
+      runStatePath: path.join(runDir, "run-state.json"),
+      checkpointsPath: path.join(runDir, "checkpoints.jsonl"),
+      planPath: runState.planPath,
+      contractPath: path.join(runDir, "contract.json"),
+      progressPath: path.join(runDir, "progress.md"),
+      deliveryPath: path.join(runDir, "delivery.json"),
+      ...(options.evalReportPath ? { evalReportPath: options.evalReportPath } : {}),
+      ...(options.challengeReportPath ? { challengeReportPath: options.challengeReportPath } : {}),
+    },
+    ...(latestCheckpoint
+      ? {
+          latestCheckpoint: {
+            timestamp: latestCheckpoint.timestamp,
+            phase: latestCheckpoint.phase,
+            summary: latestCheckpoint.summary,
+            blockerCount: latestCheckpoint.blockers.length,
+          },
+        }
+      : {}),
+    errors: options.errors ?? [],
+    warnings: options.warnings ?? [],
+  };
+
+  safeWriteFile(path.join(runDir, "run-summary.json"), JSON.stringify(summary, null, 2));
+  return summary;
+}
+
+export function readRunSummary(runsDir: string, runId: string): RunSummary | null {
+  const summaryPath = path.join(getRunDir(runsDir, runId), "run-summary.json");
+  if (!fs.existsSync(summaryPath)) return null;
+  const content = fs.readFileSync(summaryPath, "utf-8");
+  return safeParseJson<RunSummary>(content, summaryPath);
 }
 
 /** Find the active run, or null if none. Returns first active run (any session). */

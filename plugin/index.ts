@@ -365,6 +365,7 @@ export default {
       }
     }
 
+    function buildTimerProgressBar(
       active: { runId: string; state: state.RunState },
     ): string {
       const checkpoints = state.readCheckpoints(runsDir, active.runId);

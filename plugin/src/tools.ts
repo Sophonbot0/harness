@@ -42,6 +42,99 @@ function formatDuration(seconds: number): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
+function classifySubmitOutcome(
+  errors: string[],
+  maxRoundsReached: boolean,
+): {
+  finalOutcome: string;
+  failureDomain: state.RunFailureDomain;
+  failureCode?: string;
+  summary: string;
+} {
+  if (errors.length === 0) {
+    return {
+      finalOutcome: "delivered",
+      failureDomain: "none",
+      summary: "All quality gates passed and the harness run delivered successfully.",
+    };
+  }
+
+  const joined = errors.join("\n").toLowerCase();
+  const prefix = maxRoundsReached ? "failed" : "iteration_required";
+
+  if (joined.includes("cannot read eval report")
+    || joined.includes("cannot read challenge report")
+    || joined.includes("cannot read plan file")) {
+    return {
+      finalOutcome: `${prefix}_artifact_missing`,
+      failureDomain: "environment",
+      failureCode: "artifact_missing",
+      summary: "Required harness artifacts were missing or unreadable.",
+    };
+  }
+
+  if (/command not found|enoent|timed out|eacces|permission denied/.test(joined)) {
+    return {
+      finalOutcome: `${prefix}_verification_infrastructure_failure`,
+      failureDomain: "environment",
+      failureCode: "verification_infrastructure_failure",
+      summary: "Verification failed because the environment or command runtime was unavailable.",
+    };
+  }
+
+  if (joined.includes("unchecked dod")) {
+    return {
+      finalOutcome: `${prefix}_dod_incomplete`,
+      failureDomain: "harness",
+      failureCode: "dod_incomplete",
+      summary: "Definition-of-Done coverage was incomplete at submit time.",
+    };
+  }
+
+  if (joined.includes("contract item(s) not completed")) {
+    return {
+      finalOutcome: `${prefix}_contract_incomplete`,
+      failureDomain: "harness",
+      failureCode: "contract_incomplete",
+      summary: "One or more contract items were still incomplete when submission was attempted.",
+    };
+  }
+
+  if (joined.includes("unaddressed critical")) {
+    return {
+      finalOutcome: `${prefix}_critical_risk_unresolved`,
+      failureDomain: "harness",
+      failureCode: "critical_risk_unresolved",
+      summary: "Critical adversary findings remained unresolved.",
+    };
+  }
+
+  if (joined.includes("eval report indicates fail")) {
+    return {
+      finalOutcome: `${prefix}_eval_failed`,
+      failureDomain: "harness",
+      failureCode: "eval_failed",
+      summary: "The evaluator reported FAIL for the run.",
+    };
+  }
+
+  if (joined.includes("verify command")) {
+    return {
+      finalOutcome: `${prefix}_verification_failed`,
+      failureDomain: "harness",
+      failureCode: "verification_failed",
+      summary: "Tests or verification checks failed during submission.",
+    };
+  }
+
+  return {
+    finalOutcome: `${prefix}_unknown`,
+    failureDomain: "unknown",
+    failureCode: "unknown",
+    summary: "The run failed for an unclassified reason.",
+  };
+}
+
 // ─── harness_start ───
 
 export function createHarnessStartTool(runsDir: string, sessionCtx: SessionContext): AnyAgentTool {
@@ -224,6 +317,12 @@ export function createHarnessStartTool(runsDir: string, sessionCtx: SessionConte
         const projectDir = planDir.includes("/plans/") ? planDir.split("/plans/")[0] : planDir;
         runState.workingDirectory = projectDir;
         state.writeRunState(runsDir, runId, runState);
+        state.writeRunSummary(runsDir, runId, runState, {
+          finalOutcome: "active_started",
+          failureDomain: "none",
+          summary: "Harness run started. Planner phase initialized.",
+          plannerStatus: "in_progress",
+        });
 
         // Auto-render initial progress bar
         const progressBar = renderProgressBar({
@@ -840,6 +939,12 @@ export function createHarnessCheckpointTool(runsDir: string, sessionCtx: Session
             }
           }
 
+          state.writeRunSummary(runsDir, runId, runState, {
+            finalOutcome: "active_progress",
+            failureDomain: "none",
+            summary,
+          });
+
           return res;
         });
 
@@ -1021,6 +1126,7 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
 
           // Iterative loop: increment round, return to build phase
           if (runState.round < MAX_ROUNDS) {
+            const classification = classifySubmitOutcome(errors, false);
             runState.round += 1;
             runState.phase = "build";
             state.writeRunState(runsDir, runId, runState);
@@ -1052,6 +1158,17 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
               workLog: [`⚠️ Round ${runState.round - 1} failed — iterating`],
             });
 
+            state.writeRunSummary(runsDir, runId, runState, {
+              finalOutcome: classification.finalOutcome,
+              failureDomain: classification.failureDomain,
+              failureCode: classification.failureCode,
+              summary: classification.summary,
+              errors,
+              warnings,
+              generatorStatus: "in_progress",
+              evaluatorStatus: "failed",
+            });
+
             const iterResult: Record<string, unknown> = {
               delivered: false,
               iteration_needed: true,
@@ -1061,6 +1178,7 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
               errors,
               recoveryHints: hints,
               progressBar,
+              runSummaryPath: `${state.getRunDir(runsDir, runId)}/run-summary.json`,
               instruction:
                 `🔄 ITERATION ${runState.round}/${MAX_ROUNDS}: Eval failed. Fix the issues below and call harness_submit again.\n` +
                 `Do NOT start a new run. Stay in the current run and fix:\n` +
@@ -1077,8 +1195,20 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
           }
 
           // Max rounds reached — hard fail
+          const classification = classifySubmitOutcome(errors, true);
           runState.status = "failed";
           state.writeRunState(runsDir, runId, runState);
+          const endedAt = new Date().toISOString();
+          state.writeRunSummary(runsDir, runId, runState, {
+            finalOutcome: classification.finalOutcome,
+            failureDomain: classification.failureDomain,
+            failureCode: classification.failureCode,
+            summary: classification.summary,
+            endedAt,
+            errors,
+            warnings,
+            evaluatorStatus: "failed",
+          });
 
           return jsonResult({
             delivered: false,
@@ -1087,6 +1217,7 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
             round: runState.round,
             errors,
             recoveryHints: hints,
+            runSummaryPath: `${state.getRunDir(runsDir, runId)}/run-summary.json`,
             hint: `Max iterations (${MAX_ROUNDS}) reached. Run failed. Use harness_reset to start fresh.`,
           });
         }
@@ -1114,6 +1245,19 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
           runState.status = "completed";
           state.writeRunState(runsDir, runId, runState);
           state.writeDelivery(runsDir, runId, delivery);
+          state.writeRunSummary(runsDir, runId, runState, {
+            finalOutcome: "delivered",
+            failureDomain: "none",
+            summary: "All quality gates passed and the run was delivered successfully.",
+            endedAt: delivery.deliveredAt,
+            evalReportPath,
+            challengeReportPath,
+            warnings,
+            plannerStatus: "completed",
+            generatorStatus: "completed",
+            adversaryStatus: "completed",
+            evaluatorStatus: "completed",
+          });
 
           // Auto-render final status bar
           // On PASS: force 100% — all features are complete (DoD was validated)
@@ -1143,6 +1287,7 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
             checkpointCount: checkpoints.length,
             message: "All quality gates passed. Run delivered successfully.",
             progressBar,
+            runSummaryPath: `${state.getRunDir(runsDir, runId)}/run-summary.json`,
             ...(warnings.length > 0 ? { warnings } : {}),
           };
 
@@ -1285,6 +1430,14 @@ export function createHarnessResetTool(runsDir: string, sessionCtx: SessionConte
 
           runState.status = "cancelled";
           state.writeRunState(runsDir, runId, runState);
+          const cancelledAt = new Date().toISOString();
+          state.writeRunSummary(runsDir, runId, runState, {
+            finalOutcome: "cancelled_manual_reset",
+            failureDomain: "user",
+            failureCode: "manual_reset",
+            summary: reason,
+            endedAt: cancelledAt,
+          });
 
           // Auto-render final status bar
           const progressBar = renderFinalStatus({
@@ -1301,7 +1454,7 @@ export function createHarnessResetTool(runsDir: string, sessionCtx: SessionConte
           const res: Record<string, unknown> = {
             success: true,
             runId,
-            cancelledAt: new Date().toISOString(),
+            cancelledAt,
             reason,
             elapsed: formatDuration(elapsed),
             elapsedSeconds: elapsed,
@@ -1309,6 +1462,7 @@ export function createHarnessResetTool(runsDir: string, sessionCtx: SessionConte
             checkpointCount: checkpoints.length,
             message: `Run '${runId}' cancelled. You can now call harness_start to begin a fresh run.`,
             progressBar,
+            runSummaryPath: `${state.getRunDir(runsDir, runId)}/run-summary.json`,
           };
 
           // Telegram message will be auto-deleted by the plugin hook
@@ -1444,6 +1598,12 @@ export function createHarnessResumeTool(runsDir: string, sessionCtx: SessionCont
         if (sourceContract.length > 0) {
           state.writeContract(runsDir, newRunId, sourceContract);
         }
+
+        state.writeRunSummary(runsDir, newRunId, newRunState, {
+          finalOutcome: "active_resumed",
+          failureDomain: "none",
+          summary: `Run resumed from ${sourceRun.runId}.`,
+        });
 
         // Build resume briefing for the agent
         const completedFeatures = lastCheckpoint?.completedFeatures ?? [];
@@ -1687,6 +1847,21 @@ export function createHarnessStatusTool(runsDir: string, sessionCtx: SessionCont
               attempts: c.attempts,
               maxAttempts: c.maxAttempts,
             })),
+          };
+        }
+
+        const runSummary = state.readRunSummary(runsDir, runId);
+        if (runSummary) {
+          result.runSummary = {
+            path: `${state.getRunDir(runsDir, runId)}/run-summary.json`,
+            finalOutcome: runSummary.finalOutcome,
+            failureDomain: runSummary.failureDomain,
+            failureCode: runSummary.failureCode,
+            plannerStatus: runSummary.plannerStatus,
+            generatorStatus: runSummary.generatorStatus,
+            adversaryStatus: runSummary.adversaryStatus,
+            evaluatorStatus: runSummary.evaluatorStatus,
+            metrics: runSummary.metrics,
           };
         }
 
