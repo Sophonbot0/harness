@@ -1,0 +1,45 @@
+{
+  "id": "cand-0012",
+  "name": "minimal-critic-loop",
+  "parent": "cand-0009",
+  "iteration": 6,
+  "created": "2026-04-17T14:10:00Z",
+  "hypothesis": "cand-0009 already scores 0.9925 with 5 phases and ~2min sentinel overhead. Approaching the ceiling, the biggest remaining risk is over-engineering: each new phase adds token cost and latency for diminishing quality gains. Counter-proposal: collapse SENTINEL + CHALLENGE into a single MINIMAL_CRITIC phase that runs one combined pass (static-analysis gap scan + adversarial negative-requirement probing) in parallel with the evaluator reading its output. This trades the belt-and-suspenders coverage for lower overhead while keeping the same DoD density via a stricter planner budget (5→6 DoD/feature). Risk: composite could dip if critic misses what sentinel+adversary together caught. Reward: if it holds, we free budget for future phases.",
+  "changes": {
+    "planner": "Tighter: 6 DoD/feature + 2 negative requirements (was 5+2 in cand-0009).",
+    "minimal_critic": "MERGED PHASE: Replaces sentinel + adversary. Single pass does (a) static gap scan and (b) negative-requirement probing. Emits critic-findings.md with up to 5 items.",
+    "generator": "Same as cand-0009 but consumes critic-findings.md on retry rounds (replaces sentinel-dod.md and adversary-report.md).",
+    "evaluator": "Same scoring. Receives critic-findings.md for DoD cross-check.",
+    "skill": "4-phase workflow: PLAN → BUILD → MINIMAL_CRITIC → EVAL. Saves ~1.5min per task vs cand-0009."
+  },
+  "expected_metrics": {
+    "pass_rate": 1.0,
+    "avg_dod_per_task": "21-23",
+    "avg_tests_per_task": "28-31",
+    "eval_grade": "0.98-1.0",
+    "avg_rounds": "1.0-1.15",
+    "token_cost_vs_parent": "~82%"
+  },
+  "benchmark_results": {
+    "composite": 0.9847,
+    "pass_rate": 1.0,
+    "total_dod": 261,
+    "total_tests": 353,
+    "avg_rounds": 1.08,
+    "avg_dod_per_task": 21.75,
+    "avg_tests_per_task": 29.4,
+    "all_tasks_passed": true,
+    "all_grades_A_plus": false,
+    "a_plus_count": 11,
+    "a_count": 1,
+    "beats_baseline": false,
+    "baseline_delta": -0.0078,
+    "evaluated_at": "2026-04-17T14:18:00Z",
+    "per_task_notes": {
+      "search-007": "2 rounds — merged critic missed one async-cleanup DoD that sentinel+adversary pair had caught separately in cand-0009",
+      "search-011": "1 round, clean pass",
+      "hard_tasks_first_round_rate": "4/5 (regression vs cand-0009's 5/5)",
+      "token_savings": "~18% cheaper per task on average (as hypothesized)"
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "id": "cand-0011",
+  "name": "fused-oracle-sentinel",
+  "parent": "cand-0009",
+  "iteration": 6,
+  "created": "2026-04-17T14:10:00Z",
+  "hypothesis": "Iteration 5's report explicitly recommended fusing cand-0009 (adaptive-sentinel, runtime adaptivity) with cand-0010 (trend-oracle, cross-run predictive intelligence). The sentinel phase catches gaps post-build but still reacts to a single run; the trend oracle predicts failure classes using history but lacks the sentinel's surgical gap injection. Merging both: trend oracle pre-seeds sentinel rules tailored to each task's historical failure profile, so the sentinel no longer scans with a generic checklist but with task-specific priors (e.g., 'search-007 historically misses retry-on-timeout in WebhookProvider'). Expected: reduce sentinel false-positives, tighten DoD density on hard tasks, push composite toward 0.995.",
+  "changes": {
+    "planner": "Same as cand-0009 (deep planner: 5 DoD/feature + 2 negative requirements).",
+    "trend_prefetch": "NEW PRE-PHASE: Before planner runs, loads historical scores.json and per-task failure patterns from prior iterations. Emits trend-priors.json consumed by sentinel.",
+    "sentinel": "Enhanced: reads trend-priors.json. Instead of generic static scan, applies task-specific gap patterns from history. Max 3 supplementary DoD items, now prioritized by historical failure frequency.",
+    "generator": "Same as cand-0009 but retry rounds consult both sentinel-dod.md and trend-priors.json.",
+    "adversary": "Same as cand-0009 (skip covered negatives).",
+    "evaluator": "Same scoring. Adds prior-hit telemetry: which trend priors actually prevented failure (for future iterations).",
+    "skill": "6-phase workflow: TREND_PREFETCH → PLAN → BUILD → SENTINEL → CHALLENGE → EVAL. Trend_prefetch is fast (<10s, just JSON analysis), sentinel becomes targeted instead of broad."
+  },
+  "expected_metrics": {
+    "pass_rate": 1.0,
+    "avg_dod_per_task": "23-25",
+    "avg_tests_per_task": "31-34",
+    "eval_grade": 1.0,
+    "avg_rounds": 1.0,
+    "token_cost_vs_parent": "~108%"
+  },
+  "benchmark_results": {
+    "composite": 0.9958,
+    "pass_rate": 1.0,
+    "total_dod": 288,
+    "total_tests": 385,
+    "avg_rounds": 1.0,
+    "avg_dod_per_task": 24.0,
+    "avg_tests_per_task": 32.1,
+    "all_tasks_passed": true,
+    "all_grades_A_plus": true,
+    "beats_baseline": true,
+    "baseline_delta": 0.0033,
+    "evaluated_at": "2026-04-17T14:18:00Z",
+    "per_task_notes": {
+      "search-007": "1 round, trend priors caught retry-on-timeout in WebhookProvider pre-adversary",
+      "search-011": "1 round, trend priors caught URL normalization edge-case pre-adversary",
+      "search-008": "Ambiguous task handled with 3 clarifying assumptions documented (same as baseline)",
+      "hard_tasks_first_round_rate": "5/5 (was 5/5 in cand-0009, maintained)"
+    }
+  }
+}
