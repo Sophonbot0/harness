@@ -97,6 +97,11 @@ export interface ArtifactCompleteness {
   score: number;
 }
 
+export interface DataQualityAssessment {
+  grade: "high" | "medium" | "low";
+  reasons: string[];
+}
+
 export interface RunSummary {
   runId: string;
   taskDescription: string;
@@ -149,6 +154,7 @@ export interface RunSummary {
     challengeReportPath?: string;
   };
   artifactCompleteness: ArtifactCompleteness;
+  dataQuality: DataQualityAssessment;
   latestCheckpoint?: {
     timestamp: string;
     phase: string;
@@ -650,6 +656,27 @@ function readDelivery(runsDir: string, runId: string): Delivery | null {
   return safeParseJson<Delivery>(content, dp);
 }
 
+function deriveDataQuality(
+  instrumentationKind: "native" | "backfilled",
+  artifactCompleteness: ArtifactCompleteness,
+  runState: RunState,
+): DataQualityAssessment {
+  const reasons: string[] = [];
+  if (instrumentationKind === "backfilled") reasons.push("backfilled_summary");
+  if (runState.normalizedFromLegacy) reasons.push("legacy_status_normalized");
+  if (artifactCompleteness.missingRequired.length > 0) reasons.push(`missing_required:${artifactCompleteness.missingRequired.join(",")}`);
+  else if (artifactCompleteness.missingOptional.length > 0) reasons.push("missing_optional_artifacts");
+
+  let grade: DataQualityAssessment["grade"] = "high";
+  if (reasons.some((reason) => reason.startsWith("missing_required:") || reason === "legacy_status_normalized")) {
+    grade = "low";
+  } else if (reasons.length > 0) {
+    grade = "medium";
+  }
+
+  return { grade, reasons };
+}
+
 function deriveStaleActiveState(
   runState: RunState,
   checkpoints: Checkpoint[],
@@ -842,7 +869,9 @@ export function writeRunSummary(
             : "active");
 
   const derivedStatuses = derivePhaseStatuses(runState, checkpoints, finalOutcome);
+  const instrumentationKind = options.instrumentationKind ?? previousSummary?.instrumentationKind ?? "native";
   const artifactCompleteness = deriveArtifactCompleteness(runDir, runState, options);
+  const dataQuality = deriveDataQuality(instrumentationKind, artifactCompleteness, runState);
   const historicalFailureCodes = [...new Set([
     ...(previousSummary?.historicalFailureCodes ?? []),
     ...(previousSummary?.failureCodes ?? []),
@@ -857,7 +886,7 @@ export function writeRunSummary(
     startedAt: runState.startedAt,
     updatedAt,
     ...(options.endedAt ? { endedAt: options.endedAt } : {}),
-    instrumentationKind: options.instrumentationKind ?? previousSummary?.instrumentationKind ?? "native",
+    instrumentationKind,
     runStatus: runState.status,
     ...(runState.sourceStatus ? { sourceRunStatus: runState.sourceStatus } : {}),
     ...(runState.normalizedFromLegacy ? { legacyNormalized: true } : {}),
@@ -901,6 +930,7 @@ export function writeRunSummary(
       ...(options.challengeReportPath ? { challengeReportPath: options.challengeReportPath } : {}),
     },
     artifactCompleteness,
+    dataQuality,
     ...(latestCheckpoint
       ? {
           latestCheckpoint: {

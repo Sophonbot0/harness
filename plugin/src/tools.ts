@@ -1909,6 +1909,7 @@ export function createHarnessStatusTool(runsDir: string, sessionCtx: SessionCont
             adversaryStatus: runSummary.adversaryStatus,
             evaluatorStatus: runSummary.evaluatorStatus,
             artifactCompleteness: runSummary.artifactCompleteness,
+            dataQuality: runSummary.dataQuality,
             metrics: runSummary.metrics,
           };
         }

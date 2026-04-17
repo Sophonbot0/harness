@@ -241,7 +241,81 @@ function needsBackfill(existingSummary, runState) {
   if (existingSummary.runStatus !== runState.status) return true;
   if (existingSummary.sourceRunStatus !== runState.sourceStatus) return true;
   if (runState.status === 'active' && existingSummary.staleActive === undefined) return true;
+  if (!existingSummary.dataQuality) return true;
   return false;
+}
+
+function deriveDataQuality(instrumentationKind, artifactCompleteness, runState) {
+  const reasons = [];
+  if (instrumentationKind === 'backfilled') reasons.push('backfilled_summary');
+  if (runState.normalizedFromLegacy) reasons.push('legacy_status_normalized');
+  if (artifactCompleteness.missingRequired.length > 0) reasons.push(`missing_required:${artifactCompleteness.missingRequired.join(',')}`);
+  else if (artifactCompleteness.missingOptional.length > 0) reasons.push('missing_optional_artifacts');
+
+  let grade = 'high';
+  if (reasons.some((reason) => reason.startsWith('missing_required:') || reason === 'legacy_status_normalized')) {
+    grade = 'low';
+  } else if (reasons.length > 0) {
+    grade = 'medium';
+  }
+
+  return { grade, reasons };
+}
+
+function inferBackfilledFailure(runState, artifactCompleteness, staleState, lastCheckpoint, existingSummary) {
+  if (existingSummary?.failureCode || (Array.isArray(existingSummary?.failureCodes) && existingSummary.failureCodes.length > 0)) {
+    return {
+      failureDomain: existingSummary.failureDomain,
+      failureCode: existingSummary.failureCode,
+      failureCodes: existingSummary.failureCodes,
+    };
+  }
+
+  if (staleState.staleActive) {
+    return {
+      failureDomain: 'harness',
+      failureCode: 'stale_active',
+      failureCodes: ['stale_active'],
+    };
+  }
+
+  if (runState.status === 'cancelled') {
+    return {
+      failureDomain: 'user',
+      failureCode: 'cancelled',
+      failureCodes: ['cancelled'],
+    };
+  }
+
+  if (runState.status === 'failed') {
+    if (artifactCompleteness.missingRequired.includes('plan')) {
+      return {
+        failureDomain: 'environment',
+        failureCode: 'plan_missing',
+        failureCodes: ['plan_missing'],
+      };
+    }
+    if (artifactCompleteness.missingRequired.includes('contract')) {
+      return {
+        failureDomain: 'environment',
+        failureCode: 'contract_missing',
+        failureCodes: ['contract_missing'],
+      };
+    }
+    if (String(lastCheckpoint?.phase || '').toLowerCase() === 'iteration' || /failed eval|iterating/i.test(String(lastCheckpoint?.summary || ''))) {
+      return {
+        failureDomain: 'harness',
+        failureCode: 'eval_failed',
+        failureCodes: ['eval_failed'],
+      };
+    }
+  }
+
+  return {
+    failureDomain: runState.status === 'completed' ? 'none' : runState.status === 'cancelled' ? 'user' : runState.status === 'failed' ? 'unknown' : 'none',
+    failureCode: undefined,
+    failureCodes: undefined,
+  };
 }
 
 function backfillSummary(runId, runDir, rawState, existingSummary) {
@@ -264,10 +338,15 @@ function backfillSummary(runId, runDir, rawState, existingSummary) {
           : 'active';
   const phaseStatuses = derivePhaseStatuses(runState, checkpoints, finalOutcome);
   const artifactCompleteness = deriveArtifactCompleteness(runDir, runState, existingSummary?.artifacts ?? {});
+  const instrumentationKind = existingSummary?.instrumentationKind ?? 'backfilled';
+  const dataQuality = deriveDataQuality(instrumentationKind, artifactCompleteness, runState);
+  const inferredFailure = inferBackfilledFailure(runState, artifactCompleteness, staleState, lastCheckpoint, existingSummary);
   const historicalFailureCodes = [...new Set([
     ...(Array.isArray(existingSummary?.historicalFailureCodes) ? existingSummary.historicalFailureCodes : []),
     ...(Array.isArray(existingSummary?.failureCodes) ? existingSummary.failureCodes : []),
     ...(existingSummary?.failureCode ? [existingSummary.failureCode] : []),
+    ...(Array.isArray(inferredFailure.failureCodes) ? inferredFailure.failureCodes : []),
+    ...(inferredFailure.failureCode ? [inferredFailure.failureCode] : []),
   ])];
   const updatedAt = existingSummary?.updatedAt
     || delivery?.deliveredAt
@@ -282,7 +361,7 @@ function backfillSummary(runId, runDir, rawState, existingSummary) {
     startedAt: runState.startedAt,
     updatedAt,
     ...(delivery?.deliveredAt ? { endedAt: delivery.deliveredAt } : {}),
-    instrumentationKind: existingSummary?.instrumentationKind ?? 'backfilled',
+    instrumentationKind,
     runStatus: runState.status,
     ...(runState.sourceStatus ? { sourceRunStatus: runState.sourceStatus } : {}),
     ...(runState.normalizedFromLegacy ? { legacyNormalized: true } : {}),
@@ -293,9 +372,9 @@ function backfillSummary(runId, runDir, rawState, existingSummary) {
     adversaryStatus: existingSummary?.adversaryStatus ?? phaseStatuses.adversaryStatus,
     evaluatorStatus: existingSummary?.evaluatorStatus ?? phaseStatuses.evaluatorStatus,
     finalOutcome,
-    failureDomain: existingSummary?.failureDomain ?? (runState.status === 'completed' ? 'none' : runState.status === 'cancelled' ? 'user' : runState.status === 'failed' ? 'unknown' : staleState.staleActive ? 'harness' : 'none'),
-    ...(existingSummary?.failureCode ? { failureCode: existingSummary.failureCode } : {}),
-    ...(Array.isArray(existingSummary?.failureCodes) && existingSummary.failureCodes.length > 0 ? { failureCodes: existingSummary.failureCodes } : {}),
+    failureDomain: inferredFailure.failureDomain,
+    ...(inferredFailure.failureCode ? { failureCode: inferredFailure.failureCode } : {}),
+    ...(Array.isArray(inferredFailure.failureCodes) && inferredFailure.failureCodes.length > 0 ? { failureCodes: inferredFailure.failureCodes } : {}),
     ...(historicalFailureCodes.length > 0 ? { historicalFailureCodes } : {}),
     ...(staleState.staleActive ? { staleActive: true, staleMinutes: staleState.staleMinutes, staleThresholdMinutes: staleState.staleThresholdMinutes } : {}),
     summary: existingSummary?.summary ?? (staleState.staleActive ? `Harness run appears stale (${staleState.staleMinutes}min since last activity).` : `Harness run is ${runState.status}.`),
@@ -326,6 +405,7 @@ function backfillSummary(runId, runDir, rawState, existingSummary) {
       ...(existingSummary?.artifacts?.challengeReportPath ? { challengeReportPath: existingSummary.artifacts.challengeReportPath } : {}),
     },
     artifactCompleteness,
+    dataQuality,
     ...(lastCheckpoint ? {
       latestCheckpoint: {
         timestamp: lastCheckpoint.timestamp,
@@ -432,6 +512,7 @@ function buildReport(summaries, metadata) {
   const nativeSummaries = summaries.filter((s) => s.instrumentationKind === 'native');
   const backfilledSummaries = summaries.filter((s) => s.instrumentationKind === 'backfilled');
   const nativeFailureRows = failureCodeRows.filter((row) => row.instrumentationKind === 'native');
+  const backfilledFailureRows = failureCodeRows.filter((row) => row.instrumentationKind === 'backfilled');
 
   const falsePassSuspects = delivered
     .filter((s) =>
@@ -461,9 +542,11 @@ function buildReport(summaries, metadata) {
       native: nativeSummaries.length,
       backfilled: backfilledSummaries.length,
     },
+    dataQualityCounts: tally(summaries, (s) => s.dataQuality?.grade),
     failureDomainCounts: tally(failedOrIterating, (s) => s.failureDomain),
     failureCodeCounts: tally(failureCodeRows, (row) => row.code),
     nativeFailureCodeCounts: tally(nativeFailureRows, (row) => row.code),
+    backfilledFailureCodeCounts: tally(backfilledFailureRows, (row) => row.code),
     topFailureClasses: Object.entries(tally(failureCodeRows, (row) => row.code))
       .slice(0, 10)
       .map(([code, count]) => ({ code, count })),

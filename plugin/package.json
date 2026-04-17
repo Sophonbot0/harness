@@ -8,7 +8,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "smoke": "tsx test-smoke.ts",
-    "analyze-runs": "node scripts/aggregate-run-summaries.mjs"
+    "analyze-runs": "node scripts/aggregate-run-summaries.mjs",
+    "repair-artifacts": "node scripts/remediate-artifact-debt.mjs"
   },
   "files": [
     "index.ts",

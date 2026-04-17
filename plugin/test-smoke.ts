@@ -159,6 +159,7 @@ All criteria verified.
   const successSummary = state.readRunSummary(runsDir, runId);
   assert("Success summary written", successSummary?.finalOutcome === "delivered");
   assert("Success summary is native-instrumented", successSummary?.instrumentationKind === "native");
+  assert("Success summary has high data quality", successSummary?.dataQuality?.grade === "high");
   assert("Success summary has no failure domain", successSummary?.failureDomain === "none");
   assert("Success summary keeps historical failure codes", successSummary?.historicalFailureCodes?.includes("eval_report_missing") === true);
   assert("Success summary artifacts are complete", successSummary?.artifactCompleteness?.complete === true);
@@ -284,8 +285,22 @@ All criteria verified.
     assert("Aggregation tracks stale active runs", report.staleActive?.count >= 1);
     assert("Aggregation tracks legacy normalization", report.legacyDataQuality?.normalizedStatuses?.delivered_to_completed >= 1);
     assert("Aggregation reports artifact debt", typeof report.artifactDebt?.required?.contract === "number");
+    assert("Aggregation reports data quality counts", typeof report.dataQualityCounts?.low === "number");
     assert("Backfill writes legacy run-summary", fs.existsSync(path.join(legacyRunDir, "run-summary.json")));
     assert("Backfill writes stale run-summary", fs.existsSync(path.join(staleRunDir, "run-summary.json")));
+
+    const repairRaw = execFileSync(process.execPath, [
+      path.join(process.cwd(), "scripts", "remediate-artifact-debt.mjs"),
+      "--runsDir",
+      runsDir,
+      "--apply",
+      "--json",
+    ], { encoding: "utf8" });
+    const repairReport = JSON.parse(repairRaw);
+    assert("Repair script repairs at least one contract", repairReport.contractsRepaired >= 1);
+    assert("Repair script repairs at least one delivery", repairReport.deliveriesRepaired >= 1);
+    assert("Repair script writes contract.json", fs.existsSync(path.join(legacyRunDir, "contract.json")));
+    assert("Repair script writes delivery.json", fs.existsSync(path.join(legacyRunDir, "delivery.json")));
   }
 
   // ─── Progress Bar Tests ───
