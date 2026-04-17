@@ -4,6 +4,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import { execFileSync } from "node:child_process";
 import {
   createHarnessStartTool,
   createHarnessCheckpointTool,
@@ -114,8 +115,11 @@ async function main() {
   assert("Rejects without eval report", submitData?.delivered === false);
   assert("Lists errors", Array.isArray(submitData?.errors) && submitData.errors.length > 0);
   const failureSummary = state.readRunSummary(runsDir, runId);
-  assert("Failure summary written", failureSummary?.finalOutcome === "iteration_required_artifact_missing");
+  assert("Failure summary written", failureSummary?.finalOutcome === "iteration_required_eval_report_missing");
+  assert("Failure summary primary code is fine-grained", failureSummary?.failureCode === "eval_report_missing");
+  assert("Failure summary stores failure code list", failureSummary?.failureCodes?.includes("eval_report_missing") === true);
   assert("Failure summary classifies environment failure", failureSummary?.failureDomain === "environment");
+  assert("Failure summary has artifact completeness", typeof failureSummary?.artifactCompleteness?.score === "number");
 
   // --- Test 6: harness_submit (should PASS with valid eval) ---
   console.log("\n6. harness_submit (success test)");
@@ -155,6 +159,8 @@ All criteria verified.
   const successSummary = state.readRunSummary(runsDir, runId);
   assert("Success summary written", successSummary?.finalOutcome === "delivered");
   assert("Success summary has no failure domain", successSummary?.failureDomain === "none");
+  assert("Success summary keeps historical failure codes", successSummary?.historicalFailureCodes?.includes("eval_report_missing") === true);
+  assert("Success summary artifacts are complete", successSummary?.artifactCompleteness?.complete === true);
 
   // --- Test 7: harness_reset (no active run) ---
   console.log("\n7. harness_reset (no active run)");
@@ -222,6 +228,23 @@ All criteria verified.
     assert("Rejects missing planPath", badData2?.error !== undefined);
   } catch {
     assert("Rejects missing planPath (thrown)", true);
+  }
+
+  // --- Test 11b: baseline aggregation script ---
+  console.log("\n11b. baseline aggregation script");
+  {
+    const raw = execFileSync(process.execPath, [
+      path.join(process.cwd(), "scripts", "aggregate-run-summaries.mjs"),
+      "--runsDir",
+      runsDir,
+      "--json",
+    ], { encoding: "utf8" });
+    const report = JSON.parse(raw);
+    assert("Aggregation includes total runs", typeof report.totalRuns === "number" && report.totalRuns >= 2);
+    assert("Aggregation counts delivered runs", report.deliveredRuns >= 1);
+    assert("Aggregation counts eval_report_missing", report.failureCodeCounts?.eval_report_missing >= 1);
+    assert("Aggregation exposes env vs harness split", typeof report.environmentVsHarnessSplit?.environment === "number");
+    assert("Aggregation exposes false-pass suspects", Array.isArray(report.falsePassSuspects));
   }
 
   // ─── Progress Bar Tests ───

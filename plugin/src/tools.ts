@@ -42,6 +42,109 @@ function formatDuration(seconds: number): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
+function classifySingleSubmitError(error: string): { code: string; domain: state.RunFailureDomain; summary: string } {
+  const err = error.toLowerCase();
+
+  if (err.includes("cannot read eval report")) {
+    return {
+      code: "eval_report_missing",
+      domain: "environment",
+      summary: "The evaluator artifact was missing or unreadable.",
+    };
+  }
+
+  if (err.includes("cannot read challenge report")) {
+    return {
+      code: "challenge_report_missing",
+      domain: "environment",
+      summary: "The challenge artifact was missing or unreadable.",
+    };
+  }
+
+  if (err.includes("cannot read plan file")) {
+    return {
+      code: "plan_file_missing",
+      domain: "environment",
+      summary: "The plan artifact was missing or unreadable.",
+    };
+  }
+
+  if (err.includes("does not contain 'overall: pass'")) {
+    return {
+      code: "eval_report_missing_pass_marker",
+      domain: "harness",
+      summary: "The eval report existed but did not contain a valid PASS verdict.",
+    };
+  }
+
+  if (err.includes("eval report indicates fail")) {
+    return {
+      code: "eval_report_failed",
+      domain: "harness",
+      summary: "The evaluator reported FAIL for the run.",
+    };
+  }
+
+  if (err.includes("unchecked dod")) {
+    return {
+      code: "dod_incomplete",
+      domain: "harness",
+      summary: "Definition-of-Done coverage was incomplete at submit time.",
+    };
+  }
+
+  if (err.includes("contract item(s) not completed")) {
+    return {
+      code: "contract_incomplete",
+      domain: "harness",
+      summary: "One or more contract items were still incomplete when submission was attempted.",
+    };
+  }
+
+  if (err.includes("unaddressed critical")) {
+    return {
+      code: "challenge_critical_unresolved",
+      domain: "harness",
+      summary: "Critical adversary findings remained unresolved.",
+    };
+  }
+
+  if (err.includes("verify command")) {
+    if (/(command not found|enoent)/.test(err)) {
+      return {
+        code: "verify_command_missing",
+        domain: "environment",
+        summary: "The verify command could not be started in the environment.",
+      };
+    }
+    if (/timed out|etimedout|timeout/.test(err)) {
+      return {
+        code: "verify_command_timeout",
+        domain: "environment",
+        summary: "The verify command timed out before finishing.",
+      };
+    }
+    if (/eacces|permission denied/.test(err)) {
+      return {
+        code: "verify_command_permission_denied",
+        domain: "environment",
+        summary: "The verify command was blocked by permissions.",
+      };
+    }
+    return {
+      code: "verify_command_failed",
+      domain: "harness",
+      summary: "Tests or verification checks failed during submission.",
+    };
+  }
+
+  return {
+    code: "unknown",
+    domain: "unknown",
+    summary: "The run failed for an unclassified reason.",
+  };
+}
+
 function classifySubmitOutcome(
   errors: string[],
   maxRoundsReached: boolean,
@@ -49,89 +152,30 @@ function classifySubmitOutcome(
   finalOutcome: string;
   failureDomain: state.RunFailureDomain;
   failureCode?: string;
+  failureCodes: string[];
   summary: string;
 } {
   if (errors.length === 0) {
     return {
       finalOutcome: "delivered",
       failureDomain: "none",
+      failureCodes: [],
       summary: "All quality gates passed and the harness run delivered successfully.",
     };
   }
 
-  const joined = errors.join("\n").toLowerCase();
   const prefix = maxRoundsReached ? "failed" : "iteration_required";
-
-  if (joined.includes("cannot read eval report")
-    || joined.includes("cannot read challenge report")
-    || joined.includes("cannot read plan file")) {
-    return {
-      finalOutcome: `${prefix}_artifact_missing`,
-      failureDomain: "environment",
-      failureCode: "artifact_missing",
-      summary: "Required harness artifacts were missing or unreadable.",
-    };
-  }
-
-  if (/command not found|enoent|timed out|eacces|permission denied/.test(joined)) {
-    return {
-      finalOutcome: `${prefix}_verification_infrastructure_failure`,
-      failureDomain: "environment",
-      failureCode: "verification_infrastructure_failure",
-      summary: "Verification failed because the environment or command runtime was unavailable.",
-    };
-  }
-
-  if (joined.includes("unchecked dod")) {
-    return {
-      finalOutcome: `${prefix}_dod_incomplete`,
-      failureDomain: "harness",
-      failureCode: "dod_incomplete",
-      summary: "Definition-of-Done coverage was incomplete at submit time.",
-    };
-  }
-
-  if (joined.includes("contract item(s) not completed")) {
-    return {
-      finalOutcome: `${prefix}_contract_incomplete`,
-      failureDomain: "harness",
-      failureCode: "contract_incomplete",
-      summary: "One or more contract items were still incomplete when submission was attempted.",
-    };
-  }
-
-  if (joined.includes("unaddressed critical")) {
-    return {
-      finalOutcome: `${prefix}_critical_risk_unresolved`,
-      failureDomain: "harness",
-      failureCode: "critical_risk_unresolved",
-      summary: "Critical adversary findings remained unresolved.",
-    };
-  }
-
-  if (joined.includes("eval report indicates fail")) {
-    return {
-      finalOutcome: `${prefix}_eval_failed`,
-      failureDomain: "harness",
-      failureCode: "eval_failed",
-      summary: "The evaluator reported FAIL for the run.",
-    };
-  }
-
-  if (joined.includes("verify command")) {
-    return {
-      finalOutcome: `${prefix}_verification_failed`,
-      failureDomain: "harness",
-      failureCode: "verification_failed",
-      summary: "Tests or verification checks failed during submission.",
-    };
-  }
+  const classifications = errors.map(classifySingleSubmitError);
+  const failureCodes = [...new Set(classifications.map((item) => item.code))];
+  const primary = classifications.find((item) => item.code !== "unknown") ?? classifications[0];
+  const failureDomain = primary.domain;
 
   return {
-    finalOutcome: `${prefix}_unknown`,
-    failureDomain: "unknown",
-    failureCode: "unknown",
-    summary: "The run failed for an unclassified reason.",
+    finalOutcome: `${prefix}_${primary.code}`,
+    failureDomain,
+    failureCode: primary.code,
+    failureCodes,
+    summary: primary.summary,
   };
 }
 
@@ -1162,6 +1206,7 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
               finalOutcome: classification.finalOutcome,
               failureDomain: classification.failureDomain,
               failureCode: classification.failureCode,
+              failureCodes: classification.failureCodes,
               summary: classification.summary,
               errors,
               warnings,
@@ -1203,6 +1248,7 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
             finalOutcome: classification.finalOutcome,
             failureDomain: classification.failureDomain,
             failureCode: classification.failureCode,
+            failureCodes: classification.failureCodes,
             summary: classification.summary,
             endedAt,
             errors,
@@ -1857,10 +1903,12 @@ export function createHarnessStatusTool(runsDir: string, sessionCtx: SessionCont
             finalOutcome: runSummary.finalOutcome,
             failureDomain: runSummary.failureDomain,
             failureCode: runSummary.failureCode,
+            failureCodes: runSummary.failureCodes,
             plannerStatus: runSummary.plannerStatus,
             generatorStatus: runSummary.generatorStatus,
             adversaryStatus: runSummary.adversaryStatus,
             evaluatorStatus: runSummary.evaluatorStatus,
+            artifactCompleteness: runSummary.artifactCompleteness,
             metrics: runSummary.metrics,
           };
         }

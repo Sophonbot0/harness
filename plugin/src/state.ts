@@ -79,6 +79,22 @@ export type PhaseExecutionStatus =
 
 export type RunFailureDomain = "none" | "harness" | "environment" | "user" | "unknown";
 
+export interface ArtifactPresence {
+  name: string;
+  path: string;
+  required: boolean;
+  exists: boolean;
+}
+
+export interface ArtifactCompleteness {
+  required: ArtifactPresence[];
+  optional: ArtifactPresence[];
+  missingRequired: string[];
+  missingOptional: string[];
+  complete: boolean;
+  score: number;
+}
+
 export interface RunSummary {
   runId: string;
   taskDescription: string;
@@ -95,6 +111,8 @@ export interface RunSummary {
   finalOutcome: string;
   failureDomain: RunFailureDomain;
   failureCode?: string;
+  failureCodes?: string[];
+  historicalFailureCodes?: string[];
   summary: string;
   metrics: {
     elapsedSeconds: number;
@@ -122,6 +140,7 @@ export interface RunSummary {
     evalReportPath?: string;
     challengeReportPath?: string;
   };
+  artifactCompleteness: ArtifactCompleteness;
   latestCheckpoint?: {
     timestamp: string;
     phase: string;
@@ -138,6 +157,7 @@ export interface RunSummaryOptions {
   finalOutcome?: string;
   failureDomain?: RunFailureDomain;
   failureCode?: string;
+  failureCodes?: string[];
   summary?: string;
   endedAt?: string;
   errors?: string[];
@@ -589,6 +609,71 @@ function readDelivery(runsDir: string, runId: string): Delivery | null {
   return safeParseJson<Delivery>(content, dp);
 }
 
+function deriveArtifactCompleteness(
+  runDir: string,
+  runState: RunState,
+  options: RunSummaryOptions,
+): ArtifactCompleteness {
+  const required: ArtifactPresence[] = [
+    { name: "run_state", path: path.join(runDir, "run-state.json"), required: true, exists: fs.existsSync(path.join(runDir, "run-state.json")) },
+    { name: "plan", path: runState.planPath, required: true, exists: fs.existsSync(runState.planPath) },
+    { name: "contract", path: path.join(runDir, "contract.json"), required: true, exists: fs.existsSync(path.join(runDir, "contract.json")) },
+    { name: "run_summary", path: path.join(runDir, "run-summary.json"), required: true, exists: true },
+  ];
+
+  const optional: ArtifactPresence[] = [
+    { name: "progress", path: path.join(runDir, "progress.md"), required: false, exists: fs.existsSync(path.join(runDir, "progress.md")) },
+    { name: "checkpoints", path: path.join(runDir, "checkpoints.jsonl"), required: false, exists: fs.existsSync(path.join(runDir, "checkpoints.jsonl")) },
+    { name: "delivery", path: path.join(runDir, "delivery.json"), required: false, exists: fs.existsSync(path.join(runDir, "delivery.json")) },
+  ];
+
+  if (options.evalReportPath) {
+    optional.push({
+      name: "eval_report",
+      path: options.evalReportPath,
+      required: false,
+      exists: fs.existsSync(options.evalReportPath),
+    });
+  }
+
+  if (options.challengeReportPath) {
+    optional.push({
+      name: "challenge_report",
+      path: options.challengeReportPath,
+      required: false,
+      exists: fs.existsSync(options.challengeReportPath),
+    });
+  }
+
+  if (runState.status === "completed") {
+    const delivery = optional.find((artifact) => artifact.name === "delivery");
+    if (delivery) delivery.required = true;
+    const evalReport = optional.find((artifact) => artifact.name === "eval_report");
+    if (evalReport) evalReport.required = true;
+  }
+
+  if (["challenge", "eval", "completed", "failed"].includes(runState.phase) || !!options.challengeReportPath) {
+    const checkpoints = optional.find((artifact) => artifact.name === "checkpoints");
+    if (checkpoints) checkpoints.required = true;
+  }
+
+  const requiredArtifacts = [...required, ...optional.filter((artifact) => artifact.required)];
+  const optionalArtifacts = optional.filter((artifact) => !artifact.required);
+  const missingRequired = requiredArtifacts.filter((artifact) => !artifact.exists).map((artifact) => artifact.name);
+  const missingOptional = optionalArtifacts.filter((artifact) => !artifact.exists).map((artifact) => artifact.name);
+  const total = requiredArtifacts.length + optionalArtifacts.length;
+  const existing = [...requiredArtifacts, ...optionalArtifacts].filter((artifact) => artifact.exists).length;
+
+  return {
+    required: requiredArtifacts,
+    optional: optionalArtifacts,
+    missingRequired,
+    missingOptional,
+    complete: missingRequired.length === 0,
+    score: total > 0 ? Number((existing / total).toFixed(3)) : 1,
+  };
+}
+
 function derivePhaseStatuses(
   runState: RunState,
   checkpoints: Checkpoint[],
@@ -679,6 +764,7 @@ export function writeRunSummary(
   const features = readFeatures(runsDir, runId);
   const contractItems = readContract(runsDir, runId);
   const delivery = readDelivery(runsDir, runId);
+  const previousSummary = readRunSummary(runsDir, runId);
   const nowIso = new Date().toISOString();
   const updatedAt = options.endedAt
     ?? delivery?.deliveredAt
@@ -698,6 +784,14 @@ export function writeRunSummary(
           : "active");
 
   const derivedStatuses = derivePhaseStatuses(runState, checkpoints, finalOutcome);
+  const artifactCompleteness = deriveArtifactCompleteness(runDir, runState, options);
+  const historicalFailureCodes = [...new Set([
+    ...(previousSummary?.historicalFailureCodes ?? []),
+    ...(previousSummary?.failureCodes ?? []),
+    ...(previousSummary?.failureCode ? [previousSummary.failureCode] : []),
+    ...(options.failureCodes ?? []),
+    ...(options.failureCode ? [options.failureCode] : []),
+  ].filter(Boolean))];
 
   const summary: RunSummary = {
     runId,
@@ -715,6 +809,8 @@ export function writeRunSummary(
     finalOutcome,
     failureDomain: options.failureDomain ?? (runState.status === "completed" ? "none" : runState.status === "cancelled" ? "user" : runState.status === "failed" ? "unknown" : "none"),
     ...(options.failureCode ? { failureCode: options.failureCode } : {}),
+    ...(options.failureCodes && options.failureCodes.length > 0 ? { failureCodes: options.failureCodes } : {}),
+    ...(historicalFailureCodes.length > 0 ? { historicalFailureCodes } : {}),
     summary: options.summary ?? latestCheckpoint?.summary ?? `Harness run is ${runState.status}.`,
     metrics: {
       elapsedSeconds,
@@ -742,6 +838,7 @@ export function writeRunSummary(
       ...(options.evalReportPath ? { evalReportPath: options.evalReportPath } : {}),
       ...(options.challengeReportPath ? { challengeReportPath: options.challengeReportPath } : {}),
     },
+    artifactCompleteness,
     ...(latestCheckpoint
       ? {
           latestCheckpoint: {
@@ -954,6 +1051,34 @@ export function listAllRuns(runsDir: string): Array<{ runId: string; taskDescrip
           status: s.status,
           phase: s.phase,
         });
+      }
+    } catch {
+      continue;
+    }
+  }
+  return results;
+}
+
+export function listAllRunSummaries(runsDir: string): RunSummary[] {
+  if (!fs.existsSync(runsDir)) return [];
+  const dirs = fs
+    .readdirSync(runsDir)
+    .filter((d) => {
+      try { return fs.statSync(path.join(runsDir, d)).isDirectory(); } catch { return false; }
+    })
+    .sort()
+    .reverse();
+  const results: RunSummary[] = [];
+  for (const d of dirs) {
+    try {
+      const summary = readRunSummary(runsDir, d);
+      if (summary) {
+        results.push(summary);
+        continue;
+      }
+      const runState = readRunState(runsDir, d);
+      if (runState) {
+        results.push(writeRunSummary(runsDir, d, runState));
       }
     } catch {
       continue;
