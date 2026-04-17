@@ -360,6 +360,87 @@ All criteria verified.
     assert("Repair script marks stale run failed", JSON.parse(fs.readFileSync(path.join(staleRunDir, "run-state.json"), "utf8")).status === "failed");
   }
 
+  // --- Test 11c: structured contract validation invariants ---
+  console.log("\n11c. structured contract validation invariants");
+  {
+    const validPlan = validation.buildPlanContract(
+      "run-validate",
+      "Validation test",
+      path.join(planDir, "validation-plan.md"),
+      [{ text: "First criterion", checked: false }],
+      [{ id: "f001", category: "Core", description: "First criterion", status: "pending" }],
+      [{ id: "c001", description: "First criterion", acceptanceCriteria: ["Works end-to-end"], status: "pending", attempts: 0, maxAttempts: 3 }],
+      "npm test",
+    );
+    assert("Valid plan contract passes validator", validation.validatePlanContract(validPlan).length === 0);
+
+    const missingDepPlan: state.PlanContractDocument = {
+      ...validPlan,
+      contractItems: [
+        { id: "c001", description: "First criterion", acceptanceCriteria: ["Works end-to-end"], status: "pending", attempts: 0, maxAttempts: 3, dependsOn: ["c999"] },
+      ],
+    };
+    const missingDepErrors = validation.validatePlanContract(missingDepPlan);
+    assert("Plan validator catches missing dependency refs", missingDepErrors.some((err) => err.includes("depends on missing item 'c999'")));
+
+    const cyclicPlan: state.PlanContractDocument = {
+      ...validPlan,
+      contractItems: [
+        { id: "c001", description: "Item 1", acceptanceCriteria: ["A"], status: "pending", attempts: 0, maxAttempts: 3, dependsOn: ["c002"] },
+        { id: "c002", description: "Item 2", acceptanceCriteria: ["B"], status: "pending", attempts: 0, maxAttempts: 3, dependsOn: ["c001"] },
+      ],
+    };
+    const cyclicErrors = validation.validatePlanContract(cyclicPlan);
+    assert("Plan validator catches dependency cycles", cyclicErrors.some((err) => err.includes("dependency cycle detected")));
+
+    const skippedWithoutReason: state.PlanContractDocument = {
+      ...validPlan,
+      contractItems: [
+        { id: "c001", description: "Skipped item", acceptanceCriteria: ["A"], status: "skipped", attempts: 0, maxAttempts: 3 },
+      ],
+    };
+    const skippedErrors = validation.validatePlanContract(skippedWithoutReason);
+    assert("Plan validator requires skipReason for skipped items", skippedErrors.some((err) => err.includes("skipReason is required")));
+
+    const surfaceWithoutContract: state.PlanContractDocument = {
+      ...validPlan,
+      contractItems: [],
+    };
+    const surfaceErrors = validation.validatePlanContract(surfaceWithoutContract);
+    assert("Plan validator rejects empty contractItems when plan surface exists", surfaceErrors.some((err) => err.includes("must not be empty when dodItems/features are present")));
+
+    const badEval: state.EvalContractDocument = {
+      schemaVersion: "harness.phase1.v1",
+      kind: "eval_contract",
+      runId: "run-eval",
+      createdAt: "not-a-date",
+      reportPath: "relative/eval.md",
+      overall: "PASS",
+      grade: "FAIL",
+      summary: "Summary",
+    };
+    const evalErrors = validation.validateEvalContract(badEval);
+    assert("Eval validator catches invalid createdAt", evalErrors.some((err) => err.includes("createdAt must be a valid ISO timestamp")));
+    assert("Eval validator catches relative reportPath", evalErrors.some((err) => err.includes("reportPath must be an absolute path")));
+    assert("Eval validator catches grade/overall mismatch", evalErrors.some((err) => err.includes("grade must match overall")));
+
+    const badChallenge: state.ChallengeContractDocument = {
+      schemaVersion: "harness.phase1.v1",
+      kind: "challenge_contract",
+      runId: "run-challenge",
+      createdAt: new Date().toISOString(),
+      reportPath: path.join(planDir, "challenge-report.md"),
+      overall: "PASS",
+      findings: [
+        { id: "crit-001", severity: "critical", status: "open", summary: "Open critical issue" },
+      ],
+      unresolvedCriticalCount: 0,
+    };
+    const challengeErrors = validation.validateChallengeContract(badChallenge);
+    assert("Challenge validator catches unresolved count mismatch", challengeErrors.some((err) => err.includes("must match number of open findings")));
+    assert("Challenge validator catches PASS with open findings", challengeErrors.some((err) => err.includes("must be FAIL when open findings exist")));
+  }
+
   // ─── Progress Bar Tests ───
 
   // --- Test 12: renderProgressBar — 0% progress ---

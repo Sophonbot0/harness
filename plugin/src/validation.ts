@@ -160,15 +160,55 @@ export function buildEvalContract(
   };
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isValidIsoTimestamp(value: unknown): value is string {
+  return isNonEmptyString(value) && !Number.isNaN(Date.parse(value));
+}
+
+function detectDependencyCycle(items: ContractItem[]): string | null {
+  const graph = new Map<string, string[]>();
+  for (const item of items) {
+    graph.set(item.id, Array.isArray(item.dependsOn) ? item.dependsOn : []);
+  }
+
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+
+  function visit(node: string, trail: string[]): string | null {
+    if (visiting.has(node)) return [...trail, node].join(" -> ");
+    if (visited.has(node)) return null;
+    visiting.add(node);
+    for (const dep of graph.get(node) ?? []) {
+      const cycle = visit(dep, [...trail, node]);
+      if (cycle) return cycle;
+    }
+    visiting.delete(node);
+    visited.add(node);
+    return null;
+  }
+
+  for (const item of items) {
+    const cycle = visit(item.id, []);
+    if (cycle) return cycle;
+  }
+  return null;
+}
+
 export function validateEvalContract(doc: EvalContractDocument): string[] {
   const errors: string[] = [];
   if (doc.schemaVersion !== "harness.phase1.v1") errors.push("eval_contract.schemaVersion must be harness.phase1.v1");
   if (doc.kind !== "eval_contract") errors.push("eval_contract.kind must be eval_contract");
-  if (!doc.runId) errors.push("eval_contract.runId is required");
-  if (!doc.reportPath) errors.push("eval_contract.reportPath is required");
+  if (!isNonEmptyString(doc.runId)) errors.push("eval_contract.runId is required");
+  if (!isValidIsoTimestamp(doc.createdAt)) errors.push("eval_contract.createdAt must be a valid ISO timestamp");
+  if (!isNonEmptyString(doc.reportPath)) errors.push("eval_contract.reportPath is required");
+  if (isNonEmptyString(doc.reportPath) && !path.isAbsolute(doc.reportPath)) errors.push("eval_contract.reportPath must be an absolute path");
   if (doc.overall !== "PASS" && doc.overall !== "FAIL") errors.push("eval_contract.overall must be PASS or FAIL");
-  if (!doc.grade) errors.push("eval_contract.grade is required");
-  if (!doc.summary) errors.push("eval_contract.summary is required");
+  if (!isNonEmptyString(doc.grade)) errors.push("eval_contract.grade is required");
+  if (isNonEmptyString(doc.grade) && doc.grade !== doc.overall) errors.push("eval_contract.grade must match overall");
+  if (!isNonEmptyString(doc.summary)) errors.push("eval_contract.summary is required");
   return errors;
 }
 
@@ -244,22 +284,29 @@ function validateFeaturesSchema(features: Feature[]): string[] {
   const errors: string[] = [];
   const ids = new Set<string>();
   const allowedStatuses = new Set(["pending", "in_progress", "passed", "failed", "deferred"]);
+  const allowedVerifiedBy = new Set(["test", "build", "manual", "lint"]);
   features.forEach((feature, index) => {
-    if (!feature?.id || typeof feature.id !== "string") {
+    if (!isNonEmptyString(feature?.id)) {
       errors.push(`plan_contract.features[${index}].id must be a non-empty string`);
     } else if (ids.has(feature.id)) {
       errors.push(`plan_contract.features has duplicate id '${feature.id}'`);
     } else {
       ids.add(feature.id);
     }
-    if (!feature?.category || typeof feature.category !== "string") {
+    if (!isNonEmptyString(feature?.category)) {
       errors.push(`plan_contract.features[${index}].category must be a non-empty string`);
     }
-    if (!feature?.description || typeof feature.description !== "string") {
+    if (!isNonEmptyString(feature?.description)) {
       errors.push(`plan_contract.features[${index}].description must be a non-empty string`);
     }
     if (!allowedStatuses.has(feature?.status)) {
       errors.push(`plan_contract.features[${index}].status is invalid`);
+    }
+    if (feature?.verifiedAt !== undefined && !isValidIsoTimestamp(feature.verifiedAt)) {
+      errors.push(`plan_contract.features[${index}].verifiedAt must be a valid ISO timestamp`);
+    }
+    if (feature?.verifiedBy !== undefined && !allowedVerifiedBy.has(feature.verifiedBy)) {
+      errors.push(`plan_contract.features[${index}].verifiedBy is invalid`);
     }
   });
   return errors;
@@ -270,18 +317,26 @@ function validateContractItemsSchema(items: ContractItem[]): string[] {
   const ids = new Set<string>();
   const allowedStatuses = new Set(["pending", "in_progress", "passed", "failed", "skipped"]);
   items.forEach((item, index) => {
-    if (!item?.id || typeof item.id !== "string") {
+    if (!isNonEmptyString(item?.id)) {
       errors.push(`plan_contract.contractItems[${index}].id must be a non-empty string`);
     } else if (ids.has(item.id)) {
       errors.push(`plan_contract.contractItems has duplicate id '${item.id}'`);
     } else {
       ids.add(item.id);
     }
-    if (!item?.description || typeof item.description !== "string") {
+    if (!isNonEmptyString(item?.description)) {
       errors.push(`plan_contract.contractItems[${index}].description must be a non-empty string`);
     }
     if (!Array.isArray(item?.acceptanceCriteria)) {
       errors.push(`plan_contract.contractItems[${index}].acceptanceCriteria must be an array`);
+    } else if (item.acceptanceCriteria.length === 0) {
+      errors.push(`plan_contract.contractItems[${index}].acceptanceCriteria must not be empty`);
+    } else {
+      item.acceptanceCriteria.forEach((criterion, acIndex) => {
+        if (!isNonEmptyString(criterion)) {
+          errors.push(`plan_contract.contractItems[${index}].acceptanceCriteria[${acIndex}] must be a non-empty string`);
+        }
+      });
     }
     if (!allowedStatuses.has(item?.status)) {
       errors.push(`plan_contract.contractItems[${index}].status is invalid`);
@@ -295,6 +350,63 @@ function validateContractItemsSchema(items: ContractItem[]): string[] {
     if (typeof item?.attempts === "number" && typeof item?.maxAttempts === "number" && item.attempts > item.maxAttempts) {
       errors.push(`plan_contract.contractItems[${index}].attempts must not exceed maxAttempts`);
     }
+    if (item?.status === "skipped" && !isNonEmptyString(item.skipReason)) {
+      errors.push(`plan_contract.contractItems[${index}].skipReason is required when status=skipped`);
+    }
+    if (item?.startedAt !== undefined && !isValidIsoTimestamp(item.startedAt)) {
+      errors.push(`plan_contract.contractItems[${index}].startedAt must be a valid ISO timestamp`);
+    }
+    if (item?.completedAt !== undefined && !isValidIsoTimestamp(item.completedAt)) {
+      errors.push(`plan_contract.contractItems[${index}].completedAt must be a valid ISO timestamp`);
+    }
+    if (item?.timeoutMinutes !== undefined && (typeof item.timeoutMinutes !== "number" || item.timeoutMinutes <= 0)) {
+      errors.push(`plan_contract.contractItems[${index}].timeoutMinutes must be > 0`);
+    }
+    if (item?.verifyCommand !== undefined && !isNonEmptyString(item.verifyCommand)) {
+      errors.push(`plan_contract.contractItems[${index}].verifyCommand must be a non-empty string when provided`);
+    }
+    if (item?.verifyFileExists !== undefined) {
+      if (!Array.isArray(item.verifyFileExists)) {
+        errors.push(`plan_contract.contractItems[${index}].verifyFileExists must be an array when provided`);
+      } else {
+        item.verifyFileExists.forEach((filePath, fileIndex) => {
+          if (!isNonEmptyString(filePath)) {
+            errors.push(`plan_contract.contractItems[${index}].verifyFileExists[${fileIndex}] must be a non-empty string`);
+          }
+        });
+      }
+    }
+    if (item?.alternativeApproaches !== undefined) {
+      if (!Array.isArray(item.alternativeApproaches)) {
+        errors.push(`plan_contract.contractItems[${index}].alternativeApproaches must be an array when provided`);
+      } else {
+        item.alternativeApproaches.forEach((approach, approachIndex) => {
+          if (!isNonEmptyString(approach)) {
+            errors.push(`plan_contract.contractItems[${index}].alternativeApproaches[${approachIndex}] must be a non-empty string`);
+          }
+        });
+      }
+    }
+    if (item?.dependsOn !== undefined) {
+      if (!Array.isArray(item.dependsOn)) {
+        errors.push(`plan_contract.contractItems[${index}].dependsOn must be an array when provided`);
+      } else {
+        const seenDeps = new Set<string>();
+        item.dependsOn.forEach((dep, depIndex) => {
+          if (!isNonEmptyString(dep)) {
+            errors.push(`plan_contract.contractItems[${index}].dependsOn[${depIndex}] must be a non-empty string`);
+            return;
+          }
+          if (dep === item.id) {
+            errors.push(`plan_contract.contractItems[${index}].dependsOn must not reference itself ('${item.id}')`);
+          }
+          if (seenDeps.has(dep)) {
+            errors.push(`plan_contract.contractItems[${index}].dependsOn has duplicate reference '${dep}'`);
+          }
+          seenDeps.add(dep);
+        });
+      }
+    }
   });
   return errors;
 }
@@ -303,15 +415,42 @@ export function validatePlanContract(doc: PlanContractDocument): string[] {
   const errors: string[] = [];
   if (doc.schemaVersion !== "harness.phase1.v1") errors.push("plan_contract.schemaVersion must be harness.phase1.v1");
   if (doc.kind !== "plan_contract") errors.push("plan_contract.kind must be plan_contract");
-  if (!doc.runId) errors.push("plan_contract.runId is required");
-  if (!doc.taskDescription) errors.push("plan_contract.taskDescription is required");
-  if (!doc.planPath) errors.push("plan_contract.planPath is required");
+  if (!isNonEmptyString(doc.runId)) errors.push("plan_contract.runId is required");
+  if (!isNonEmptyString(doc.taskDescription)) errors.push("plan_contract.taskDescription is required");
+  if (!isValidIsoTimestamp(doc.createdAt)) errors.push("plan_contract.createdAt must be a valid ISO timestamp");
+  if (doc.updatedAt !== undefined && !isValidIsoTimestamp(doc.updatedAt)) errors.push("plan_contract.updatedAt must be a valid ISO timestamp");
+  if (!isNonEmptyString(doc.planPath)) errors.push("plan_contract.planPath is required");
+  if (isNonEmptyString(doc.planPath) && !path.isAbsolute(doc.planPath)) errors.push("plan_contract.planPath must be an absolute path");
+  if (doc.verifyCommand !== undefined && !isNonEmptyString(doc.verifyCommand)) errors.push("plan_contract.verifyCommand must be a non-empty string when provided");
   if (!Array.isArray(doc.dodItems)) errors.push("plan_contract.dodItems must be an array");
   else errors.push(...validateDodItemsSchema(doc.dodItems));
   if (!Array.isArray(doc.features)) errors.push("plan_contract.features must be an array");
   else errors.push(...validateFeaturesSchema(doc.features));
   if (!Array.isArray(doc.contractItems)) errors.push("plan_contract.contractItems must be an array");
   else errors.push(...validateContractItemsSchema(doc.contractItems));
+
+  if (Array.isArray(doc.contractItems)) {
+    const ids = new Set(doc.contractItems.map((item) => item.id));
+    for (const item of doc.contractItems) {
+      for (const dep of item.dependsOn ?? []) {
+        if (!ids.has(dep)) {
+          errors.push(`plan_contract.contractItems '${item.id}' depends on missing item '${dep}'`);
+        }
+      }
+    }
+    const cycle = detectDependencyCycle(doc.contractItems);
+    if (cycle) {
+      errors.push(`plan_contract.contractItems dependency cycle detected: ${cycle}`);
+    }
+  }
+
+  const hasPlanSurface =
+    (Array.isArray(doc.dodItems) && doc.dodItems.length > 0)
+    || (Array.isArray(doc.features) && doc.features.length > 0);
+  if (hasPlanSurface && Array.isArray(doc.contractItems) && doc.contractItems.length === 0) {
+    errors.push("plan_contract.contractItems must not be empty when dodItems/features are present");
+  }
+
   return errors;
 }
 
@@ -348,11 +487,47 @@ export function validateChallengeContract(doc: ChallengeContractDocument): strin
   const errors: string[] = [];
   if (doc.schemaVersion !== "harness.phase1.v1") errors.push("challenge_contract.schemaVersion must be harness.phase1.v1");
   if (doc.kind !== "challenge_contract") errors.push("challenge_contract.kind must be challenge_contract");
-  if (!doc.runId) errors.push("challenge_contract.runId is required");
-  if (!doc.reportPath) errors.push("challenge_contract.reportPath is required");
+  if (!isNonEmptyString(doc.runId)) errors.push("challenge_contract.runId is required");
+  if (!isValidIsoTimestamp(doc.createdAt)) errors.push("challenge_contract.createdAt must be a valid ISO timestamp");
+  if (!isNonEmptyString(doc.reportPath)) errors.push("challenge_contract.reportPath is required");
+  if (isNonEmptyString(doc.reportPath) && !path.isAbsolute(doc.reportPath)) errors.push("challenge_contract.reportPath must be an absolute path");
   if (doc.overall !== "PASS" && doc.overall !== "FAIL") errors.push("challenge_contract.overall must be PASS or FAIL");
-  if (!Array.isArray(doc.findings)) errors.push("challenge_contract.findings must be an array");
-  if (typeof doc.unresolvedCriticalCount !== "number") errors.push("challenge_contract.unresolvedCriticalCount must be a number");
+  if (!Array.isArray(doc.findings)) {
+    errors.push("challenge_contract.findings must be an array");
+  } else {
+    const ids = new Set<string>();
+    doc.findings.forEach((finding, index) => {
+      if (!isNonEmptyString(finding?.id)) {
+        errors.push(`challenge_contract.findings[${index}].id must be a non-empty string`);
+      } else if (ids.has(finding.id)) {
+        errors.push(`challenge_contract.findings has duplicate id '${finding.id}'`);
+      } else {
+        ids.add(finding.id);
+      }
+      if (finding?.severity !== "critical") {
+        errors.push(`challenge_contract.findings[${index}].severity must be 'critical'`);
+      }
+      if (finding?.status !== "open" && finding?.status !== "resolved") {
+        errors.push(`challenge_contract.findings[${index}].status must be open or resolved`);
+      }
+      if (!isNonEmptyString(finding?.summary)) {
+        errors.push(`challenge_contract.findings[${index}].summary must be a non-empty string`);
+      }
+    });
+    const unresolved = doc.findings.filter((finding) => finding.status === "open").length;
+    if (typeof doc.unresolvedCriticalCount === "number" && doc.unresolvedCriticalCount !== unresolved) {
+      errors.push("challenge_contract.unresolvedCriticalCount must match number of open findings");
+    }
+    if (doc.overall === "PASS" && unresolved > 0) {
+      errors.push("challenge_contract.overall must be FAIL when open findings exist");
+    }
+    if (doc.overall === "FAIL" && unresolved === 0) {
+      errors.push("challenge_contract.overall must be PASS when no open findings exist");
+    }
+  }
+  if (typeof doc.unresolvedCriticalCount !== "number" || doc.unresolvedCriticalCount < 0) {
+    errors.push("challenge_contract.unresolvedCriticalCount must be a non-negative number");
+  }
   return errors;
 }
 
