@@ -78,6 +78,7 @@ export interface PlanContractDocument {
   runId: string;
   taskDescription: string;
   createdAt: string;
+  updatedAt?: string;
   planPath: string;
   verifyCommand?: string;
   dodItems: DodItem[];
@@ -415,13 +416,26 @@ export function readRunState(runsDir: string, runId: string): RunState | null {
   return normalizeRunState(raw);
 }
 
+function syncPlanContractFromArtifacts(runsDir: string, runId: string, update: Partial<Pick<PlanContractDocument, "dodItems" | "features" | "contractItems" | "verifyCommand" | "taskDescription" | "planPath">>): void {
+  const existing = readPlanContract(runsDir, runId);
+  if (!existing) return;
+  writePlanContract(runsDir, runId, {
+    ...existing,
+    ...update,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 export function writeDodItems(runsDir: string, runId: string, items: DodItem[]): void {
   const dir = getRunDir(runsDir, runId);
   ensureDir(dir);
   safeWriteFile(path.join(dir, "dod-items.json"), JSON.stringify(items, null, 2));
+  syncPlanContractFromArtifacts(runsDir, runId, { dodItems: items });
 }
 
 export function readDodItems(runsDir: string, runId: string): DodItem[] {
+  const planContract = readPlanContract(runsDir, runId);
+  if (planContract) return planContract.dodItems ?? [];
   const p = path.join(getRunDir(runsDir, runId), "dod-items.json");
   if (!fs.existsSync(p)) return [];
   const content = fs.readFileSync(p, "utf-8");
@@ -434,9 +448,12 @@ export function writeFeatures(runsDir: string, runId: string, features: Feature[
   const dir = getRunDir(runsDir, runId);
   ensureDir(dir);
   safeWriteFile(path.join(dir, "features.json"), JSON.stringify(features, null, 2));
+  syncPlanContractFromArtifacts(runsDir, runId, { features });
 }
 
 export function readFeatures(runsDir: string, runId: string): Feature[] {
+  const planContract = readPlanContract(runsDir, runId);
+  if (planContract) return planContract.features ?? [];
   const p = path.join(getRunDir(runsDir, runId), "features.json");
   if (!fs.existsSync(p)) return [];
   const content = fs.readFileSync(p, "utf-8");
@@ -449,9 +466,12 @@ export function writeContract(runsDir: string, runId: string, items: ContractIte
   const dir = getRunDir(runsDir, runId);
   ensureDir(dir);
   safeWriteFile(path.join(dir, "contract.json"), JSON.stringify(items, null, 2));
+  syncPlanContractFromArtifacts(runsDir, runId, { contractItems: items });
 }
 
 export function readContract(runsDir: string, runId: string): ContractItem[] {
+  const planContract = readPlanContract(runsDir, runId);
+  if (planContract) return planContract.contractItems ?? [];
   const p = path.join(getRunDir(runsDir, runId), "contract.json");
   if (!fs.existsSync(p)) return [];
   const content = fs.readFileSync(p, "utf-8");

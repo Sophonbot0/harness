@@ -227,6 +227,78 @@ export function buildPlanContract(
   };
 }
 
+function validateDodItemsSchema(items: DodItem[]): string[] {
+  const errors: string[] = [];
+  items.forEach((item, index) => {
+    if (!item || typeof item.text !== "string" || item.text.trim().length === 0) {
+      errors.push(`plan_contract.dodItems[${index}].text must be a non-empty string`);
+    }
+    if (typeof item.checked !== "boolean") {
+      errors.push(`plan_contract.dodItems[${index}].checked must be boolean`);
+    }
+  });
+  return errors;
+}
+
+function validateFeaturesSchema(features: Feature[]): string[] {
+  const errors: string[] = [];
+  const ids = new Set<string>();
+  const allowedStatuses = new Set(["pending", "in_progress", "passed", "failed", "deferred"]);
+  features.forEach((feature, index) => {
+    if (!feature?.id || typeof feature.id !== "string") {
+      errors.push(`plan_contract.features[${index}].id must be a non-empty string`);
+    } else if (ids.has(feature.id)) {
+      errors.push(`plan_contract.features has duplicate id '${feature.id}'`);
+    } else {
+      ids.add(feature.id);
+    }
+    if (!feature?.category || typeof feature.category !== "string") {
+      errors.push(`plan_contract.features[${index}].category must be a non-empty string`);
+    }
+    if (!feature?.description || typeof feature.description !== "string") {
+      errors.push(`plan_contract.features[${index}].description must be a non-empty string`);
+    }
+    if (!allowedStatuses.has(feature?.status)) {
+      errors.push(`plan_contract.features[${index}].status is invalid`);
+    }
+  });
+  return errors;
+}
+
+function validateContractItemsSchema(items: ContractItem[]): string[] {
+  const errors: string[] = [];
+  const ids = new Set<string>();
+  const allowedStatuses = new Set(["pending", "in_progress", "passed", "failed", "skipped"]);
+  items.forEach((item, index) => {
+    if (!item?.id || typeof item.id !== "string") {
+      errors.push(`plan_contract.contractItems[${index}].id must be a non-empty string`);
+    } else if (ids.has(item.id)) {
+      errors.push(`plan_contract.contractItems has duplicate id '${item.id}'`);
+    } else {
+      ids.add(item.id);
+    }
+    if (!item?.description || typeof item.description !== "string") {
+      errors.push(`plan_contract.contractItems[${index}].description must be a non-empty string`);
+    }
+    if (!Array.isArray(item?.acceptanceCriteria)) {
+      errors.push(`plan_contract.contractItems[${index}].acceptanceCriteria must be an array`);
+    }
+    if (!allowedStatuses.has(item?.status)) {
+      errors.push(`plan_contract.contractItems[${index}].status is invalid`);
+    }
+    if (typeof item?.attempts !== "number" || item.attempts < 0) {
+      errors.push(`plan_contract.contractItems[${index}].attempts must be a non-negative number`);
+    }
+    if (typeof item?.maxAttempts !== "number" || item.maxAttempts < 1) {
+      errors.push(`plan_contract.contractItems[${index}].maxAttempts must be >= 1`);
+    }
+    if (typeof item?.attempts === "number" && typeof item?.maxAttempts === "number" && item.attempts > item.maxAttempts) {
+      errors.push(`plan_contract.contractItems[${index}].attempts must not exceed maxAttempts`);
+    }
+  });
+  return errors;
+}
+
 export function validatePlanContract(doc: PlanContractDocument): string[] {
   const errors: string[] = [];
   if (doc.schemaVersion !== "harness.phase1.v1") errors.push("plan_contract.schemaVersion must be harness.phase1.v1");
@@ -235,8 +307,11 @@ export function validatePlanContract(doc: PlanContractDocument): string[] {
   if (!doc.taskDescription) errors.push("plan_contract.taskDescription is required");
   if (!doc.planPath) errors.push("plan_contract.planPath is required");
   if (!Array.isArray(doc.dodItems)) errors.push("plan_contract.dodItems must be an array");
+  else errors.push(...validateDodItemsSchema(doc.dodItems));
   if (!Array.isArray(doc.features)) errors.push("plan_contract.features must be an array");
-  if (!Array.isArray(doc.contractItems) || doc.contractItems.length === 0) errors.push("plan_contract.contractItems must be a non-empty array");
+  else errors.push(...validateFeaturesSchema(doc.features));
+  if (!Array.isArray(doc.contractItems)) errors.push("plan_contract.contractItems must be an array");
+  else errors.push(...validateContractItemsSchema(doc.contractItems));
   return errors;
 }
 

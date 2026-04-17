@@ -1157,17 +1157,13 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
           }
         }
 
-        // 2. Check DoD items from plan
-        const planContent = validation.safeReadFile(runState.planPath);
-        if (planContent === null) {
-          errors.push(`Cannot read plan file: ${runState.planPath}`);
-        } else {
-          const unchecked = validation.findUncheckedDod(planContent);
-          if (unchecked.length > 0) {
-            errors.push(
-              `${unchecked.length} unchecked DoD item(s) remain:\n` +
-                unchecked.map((u) => `  - [ ] ${u}`).join("\n"),
-            );
+        // 2. Check structured plan contract / contract state (Phase 1 source-of-truth)
+        if (planContract) {
+          if (!Array.isArray(planContract.contractItems)) {
+            errors.push("Plan contract invalid: contractItems must be an array");
+          }
+          if (!Array.isArray(planContract.dodItems)) {
+            errors.push("Plan contract invalid: dodItems must be an array");
           }
         }
 
@@ -2337,15 +2333,17 @@ export function createHarnessChallengeTool(runsDir: string, sessionCtx: SessionC
           }
         }
 
-        // 4. Plan file + unchecked DoD
+        // 4. Structured plan contract validation
         if (runAll) {
-          const planContent = validation.safeReadFile(runState.planPath);
-          if (!planContent) {
-            findings.push({ level: "CRITICAL", check: "plan", message: `Plan missing: ${runState.planPath}` });
+          const planContract = state.readPlanContract(runsDir, runId);
+          if (!planContract) {
+            findings.push({ level: "CRITICAL", check: "plan_contract", message: `Plan contract missing: ${state.getPlanContractPath(runsDir, runId)}` });
           } else {
-            const unchecked = validation.findUncheckedDod(planContent);
-            if (unchecked.length > 0) {
-              findings.push({ level: "WARNING", check: "dod", message: `${unchecked.length} unchecked DoD items` });
+            const planContractErrors = validation.validatePlanContract(planContract);
+            if (planContractErrors.length > 0) {
+              findings.push({ level: "CRITICAL", check: "plan_contract", message: `Plan contract invalid: ${planContractErrors.slice(0, 3).join("; ")}` });
+            } else {
+              findings.push({ level: "INFO", check: "plan_contract", message: `Plan contract valid (${planContract.contractItems.length} contract items)` });
             }
           }
         }

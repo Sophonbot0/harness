@@ -124,15 +124,6 @@ async function main() {
 
   // --- Test 6: harness_submit (should PASS with valid eval) ---
   console.log("\n6. harness_submit (success test)");
-  // First update plan to have all DoD checked
-  fs.writeFileSync(planPath, `# Plan: Test
-
-## Feature 1: Test Feature
-- **DoD:**
-  - [x] First criterion
-  - [x] Second criterion
-  - [x] Already done criterion
-`);
   // Mark all contract items complete so submit can pass
   await cpTool.execute("test-6a", {
     phase: "eval",
@@ -141,6 +132,12 @@ async function main() {
     blockers: [],
     summary: "All contract items complete and ready for final submit",
   });
+
+  // Corrupt markdown DoD on purpose — submit should rely on structured plan contract, not markdown checkboxes
+  fs.writeFileSync(planPath, `# Plan: Test\n\n## Feature 1: Test Feature\n- **DoD:**\n  - [ ] First criterion\n  - [ ] Second criterion\n  - [ ] Already done criterion\n`);
+  const syncedPlanContract = state.readPlanContract(runsDir, runId);
+  assert("Plan contract keeps contract items after checkpoint", Array.isArray(syncedPlanContract?.contractItems) && syncedPlanContract!.contractItems.length >= 3);
+  assert("Plan contract reflects passed contract state", syncedPlanContract?.contractItems.every((item) => item.status === "passed") === true);
 
   // Create passing eval + challenge reports
   const evalPath = path.join(planDir, "eval-report.md");
