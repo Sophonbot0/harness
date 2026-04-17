@@ -490,10 +490,24 @@ export function getChallengeContractPath(runsDir: string, runId: string): string
   return path.join(getRunDir(runsDir, runId), "challenge.contract.json");
 }
 
+function materializePlanDerivedArtifacts(runsDir: string, runId: string, doc: PlanContractDocument): void {
+  const dir = getRunDir(runsDir, runId);
+  ensureDir(dir);
+  safeWriteFile(path.join(dir, "dod-items.json"), JSON.stringify(doc.dodItems ?? [], null, 2));
+  safeWriteFile(path.join(dir, "features.json"), JSON.stringify(doc.features ?? [], null, 2));
+  safeWriteFile(path.join(dir, "contract.json"), JSON.stringify(doc.contractItems ?? [], null, 2));
+}
+
 export function writePlanContract(runsDir: string, runId: string, doc: PlanContractDocument): void {
   const dir = getRunDir(runsDir, runId);
   ensureDir(dir);
-  safeWriteFile(getPlanContractPath(runsDir, runId), JSON.stringify(doc, null, 2));
+  const normalized: PlanContractDocument = {
+    ...doc,
+    runId,
+    updatedAt: new Date().toISOString(),
+  };
+  safeWriteFile(getPlanContractPath(runsDir, runId), JSON.stringify(normalized, null, 2));
+  materializePlanDerivedArtifacts(runsDir, runId, normalized);
 }
 
 export function readPlanContract(runsDir: string, runId: string): PlanContractDocument | null {

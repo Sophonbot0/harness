@@ -173,6 +173,15 @@ All criteria verified.
   assert("Success summary exposes eval contract path", successSummary?.artifacts?.evalContractPath?.endsWith("eval.contract.json") === true);
   assert("Success summary exposes challenge contract path", successSummary?.artifacts?.challengeContractPath?.endsWith("challenge.contract.json") === true);
 
+  const planContractDoc = state.readPlanContract(runsDir, runId);
+  fs.unlinkSync(path.join(runDir, "contract.json"));
+  fs.unlinkSync(path.join(runDir, "features.json"));
+  fs.unlinkSync(path.join(runDir, "dod-items.json"));
+  state.writePlanContract(runsDir, runId, planContractDoc!);
+  assert("Plan contract rematerializes contract.json", fs.existsSync(path.join(runDir, "contract.json")));
+  assert("Plan contract rematerializes features.json", fs.existsSync(path.join(runDir, "features.json")));
+  assert("Plan contract rematerializes dod-items.json", fs.existsSync(path.join(runDir, "dod-items.json")));
+
   // --- Test 7: harness_reset (no active run) ---
   console.log("\n7. harness_reset (no active run)");
   const resetTool = createHarnessResetTool(runsDir, sessionCtx);

@@ -1714,17 +1714,26 @@ export function createHarnessResumeTool(runsDir: string, sessionCtx: SessionCont
 
         state.writeRunState(runsDir, newRunId, newRunState);
 
-        // Carry over DoD items and features
-        if (sourceDod.length > 0) {
-          state.writeDodItems(runsDir, newRunId, sourceDod);
-        }
-        if (sourceFeatures.length > 0) {
-          state.writeFeatures(runsDir, newRunId, sourceFeatures);
-        }
-        // Carry over contract
-        const sourceContract = state.readContract(runsDir, sourceRun.runId);
-        if (sourceContract.length > 0) {
-          state.writeContract(runsDir, newRunId, sourceContract);
+        const sourcePlanContract = state.readPlanContract(runsDir, sourceRun.runId);
+        // Carry over structured plan contract as the canonical runtime source of truth
+        if (sourcePlanContract) {
+          state.writePlanContract(runsDir, newRunId, {
+            ...sourcePlanContract,
+            runId: newRunId,
+            createdAt: now,
+          });
+        } else {
+          // Legacy fallback
+          if (sourceDod.length > 0) {
+            state.writeDodItems(runsDir, newRunId, sourceDod);
+          }
+          if (sourceFeatures.length > 0) {
+            state.writeFeatures(runsDir, newRunId, sourceFeatures);
+          }
+          const sourceContract = state.readContract(runsDir, sourceRun.runId);
+          if (sourceContract.length > 0) {
+            state.writeContract(runsDir, newRunId, sourceContract);
+          }
         }
 
         state.writeRunSummary(runsDir, newRunId, newRunState, {
