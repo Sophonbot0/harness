@@ -111,6 +111,16 @@ export function safeReadFile(filePath: string): string | null {
   }
 }
 
+/** Read JSON safely, returning null on error. */
+export function safeReadJson<T = unknown>(filePath: string): T | null {
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    return JSON.parse(fs.readFileSync(filePath, "utf-8")) as T;
+  } catch {
+    return null;
+  }
+}
+
 /** Check if eval report contains "Overall: PASS". Returns { passed, reason }. */
 export function checkEvalReport(content: string): { passed: boolean; reason: string } {
   const passPattern = /overall\s*:\s*pass/i;
@@ -132,9 +142,87 @@ function firstMeaningfulParagraph(content: string): string {
     if (!line) continue;
     if (line.startsWith("#")) continue;
     if (/^overall\s*:/i.test(line)) continue;
+    if (/^confidence(?:\s+rating|\s+assessment)?\s*:/i.test(line)) continue;
     return line;
   }
   return "No summary provided.";
+}
+
+function parseConfidenceRating(content: string): number | undefined {
+  const match = content.match(/confidence(?:\s+rating|\s+assessment)?[^\d]{0,12}([1-5])\b/i);
+  if (!match) return undefined;
+  return Number.parseInt(match[1], 10);
+}
+
+function extractSectionBullets(content: string, sectionNames: string[]): string[] {
+  const wanted = sectionNames.map((name) => name.toLowerCase());
+  const lines = content.split("\n");
+  const bullets: string[] = [];
+  let capture = false;
+
+  for (const rawLine of lines) {
+    const headingMatch = rawLine.match(/^#{2,6}\s+(.*)$/);
+    if (headingMatch) {
+      const heading = headingMatch[1].toLowerCase();
+      capture = wanted.some((name) => heading.includes(name));
+      continue;
+    }
+    if (!capture) continue;
+    const bulletMatch = rawLine.trim().match(/^[-*]\s+(.*)$/);
+    if (bulletMatch && bulletMatch[1].trim().length > 0) {
+      bullets.push(bulletMatch[1].trim());
+    }
+  }
+
+  return bullets;
+}
+
+function buildSyntheticDodVerdict(overall: "PASS" | "FAIL", summary: string): EvalContractDocument["dodVerdicts"] {
+  return [{
+    description: `Overall evaluator verdict: ${overall}`,
+    verdict: overall,
+    evidence: summary,
+  }];
+}
+
+function extractEvalDodVerdicts(content: string, overall: "PASS" | "FAIL", summary: string): NonNullable<EvalContractDocument["dodVerdicts"]> {
+  const verdicts: NonNullable<EvalContractDocument["dodVerdicts"]> = [];
+  for (const rawLine of content.split("\n")) {
+    const line = rawLine.trim();
+    if (!line || /^overall\s*:/i.test(line)) continue;
+    const verdictMatch = line.match(/\b(BONUS PASS|BONUS FAIL|PASS|FAIL)\b/i);
+    if (!verdictMatch) continue;
+    const verdictToken = verdictMatch[1].toUpperCase().replace(/\s+/g, "_") as NonNullable<EvalContractDocument["dodVerdicts"]>[number]["verdict"];
+    const cleaned = line
+      .replace(/^[-*]\s+/, "")
+      .replace(/^\d+[.)]\s+/, "")
+      .trim();
+    verdicts.push({
+      description: cleaned,
+      verdict: verdictToken,
+      evidence: cleaned,
+    });
+  }
+  return verdicts.length > 0 ? verdicts : buildSyntheticDodVerdict(overall, summary);
+}
+
+function extractEvalChallengeVerdicts(content: string): NonNullable<EvalContractDocument["challengeVerdicts"]> {
+  const verdicts: NonNullable<EvalContractDocument["challengeVerdicts"]> = [];
+  for (const rawLine of content.split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const challengeIdMatch = line.match(/\b(crit-\d+|challenge[-_a-z0-9]+)\b/i);
+    if (!challengeIdMatch) continue;
+    const dispositionMatch = line.match(/\b(CONFIRMED|DISMISSED|PASS|FAIL)\b/i);
+    if (!dispositionMatch) continue;
+    const token = dispositionMatch[1].toUpperCase();
+    verdicts.push({
+      challengeId: challengeIdMatch[1],
+      disposition: token === "CONFIRMED" || token === "FAIL" ? "CONFIRMED" : "DISMISSED",
+      evidence: line,
+    });
+  }
+  return verdicts;
 }
 
 export function buildEvalContract(
@@ -148,6 +236,14 @@ export function buildEvalContract(
   }
 
   const overall = overallMatch[1].toUpperCase() as "PASS" | "FAIL";
+  const summary = firstMeaningfulParagraph(content);
+  const unresolvedCriticalChallengeIds = extractSectionBullets(content, ["unresolved critical challenges"])
+    .map((line) => {
+      const match = line.match(/\b(crit-\d+|challenge[-_a-z0-9]+)\b/i);
+      return match?.[1];
+    })
+    .filter((value): value is string => Boolean(value));
+
   return {
     schemaVersion: "harness.phase1.v1",
     kind: "eval_contract",
@@ -156,7 +252,12 @@ export function buildEvalContract(
     reportPath,
     overall,
     grade: overall,
-    summary: firstMeaningfulParagraph(content),
+    summary,
+    confidence: parseConfidenceRating(content),
+    rationale: summary,
+    dodVerdicts: extractEvalDodVerdicts(content, overall, summary),
+    challengeVerdicts: extractEvalChallengeVerdicts(content),
+    unresolvedCriticalChallengeIds,
   };
 }
 
@@ -197,6 +298,10 @@ function detectDependencyCycle(items: ContractItem[]): string | null {
   return null;
 }
 
+function normalizeEvalGrade(value: string): string {
+  return value.trim().toUpperCase().replace(/\s+/g, "_");
+}
+
 export function validateEvalContract(doc: EvalContractDocument): string[] {
   const errors: string[] = [];
   if (doc.schemaVersion !== "harness.phase1.v1") errors.push("eval_contract.schemaVersion must be harness.phase1.v1");
@@ -207,8 +312,89 @@ export function validateEvalContract(doc: EvalContractDocument): string[] {
   if (isNonEmptyString(doc.reportPath) && !path.isAbsolute(doc.reportPath)) errors.push("eval_contract.reportPath must be an absolute path");
   if (doc.overall !== "PASS" && doc.overall !== "FAIL") errors.push("eval_contract.overall must be PASS or FAIL");
   if (!isNonEmptyString(doc.grade)) errors.push("eval_contract.grade is required");
-  if (isNonEmptyString(doc.grade) && doc.grade !== doc.overall) errors.push("eval_contract.grade must match overall");
+  if (isNonEmptyString(doc.grade) && normalizeEvalGrade(doc.grade) !== doc.overall) errors.push("eval_contract.grade must match overall");
   if (!isNonEmptyString(doc.summary)) errors.push("eval_contract.summary is required");
+  if (doc.confidence !== undefined && (!Number.isFinite(doc.confidence) || doc.confidence < 1 || doc.confidence > 5)) {
+    errors.push("eval_contract.confidence must be between 1 and 5 when provided");
+  }
+  if (doc.rationale !== undefined && !isNonEmptyString(doc.rationale)) {
+    errors.push("eval_contract.rationale must be a non-empty string when provided");
+  }
+
+  if (doc.dodVerdicts !== undefined) {
+    if (!Array.isArray(doc.dodVerdicts)) {
+      errors.push("eval_contract.dodVerdicts must be an array when provided");
+    } else if (doc.dodVerdicts.length === 0) {
+      errors.push("eval_contract.dodVerdicts must not be empty when provided");
+    } else {
+      let coreFails = 0;
+      doc.dodVerdicts.forEach((verdict, index) => {
+        if (verdict.itemId !== undefined && !isNonEmptyString(verdict.itemId)) {
+          errors.push(`eval_contract.dodVerdicts[${index}].itemId must be a non-empty string when provided`);
+        }
+        if (!isNonEmptyString(verdict?.description)) {
+          errors.push(`eval_contract.dodVerdicts[${index}].description must be a non-empty string`);
+        }
+        if (!["PASS", "FAIL", "BONUS_PASS", "BONUS_FAIL"].includes(String(verdict?.verdict))) {
+          errors.push(`eval_contract.dodVerdicts[${index}].verdict must be PASS|FAIL|BONUS_PASS|BONUS_FAIL`);
+        }
+        if (!isNonEmptyString(verdict?.evidence)) {
+          errors.push(`eval_contract.dodVerdicts[${index}].evidence must be a non-empty string`);
+        }
+        if (verdict?.verdict === "FAIL") coreFails += 1;
+      });
+      if (doc.overall === "PASS" && coreFails > 0) {
+        errors.push("eval_contract.overall must be FAIL when any core DoD verdict is FAIL");
+      }
+      if (doc.overall === "FAIL" && coreFails === 0 && (!doc.unresolvedCriticalChallengeIds || doc.unresolvedCriticalChallengeIds.length === 0)) {
+        errors.push("eval_contract.FAIL must include either a FAIL DoD verdict or unresolved critical challenges");
+      }
+    }
+  }
+
+  if (doc.challengeVerdicts !== undefined) {
+    if (!Array.isArray(doc.challengeVerdicts)) {
+      errors.push("eval_contract.challengeVerdicts must be an array when provided");
+    } else {
+      const ids = new Set<string>();
+      doc.challengeVerdicts.forEach((verdict, index) => {
+        if (!isNonEmptyString(verdict?.challengeId)) {
+          errors.push(`eval_contract.challengeVerdicts[${index}].challengeId must be a non-empty string`);
+        } else if (ids.has(verdict.challengeId)) {
+          errors.push(`eval_contract.challengeVerdicts has duplicate challengeId '${verdict.challengeId}'`);
+        } else {
+          ids.add(verdict.challengeId);
+        }
+        if (verdict?.disposition !== "CONFIRMED" && verdict?.disposition !== "DISMISSED") {
+          errors.push(`eval_contract.challengeVerdicts[${index}].disposition must be CONFIRMED or DISMISSED`);
+        }
+        if (!isNonEmptyString(verdict?.evidence)) {
+          errors.push(`eval_contract.challengeVerdicts[${index}].evidence must be a non-empty string`);
+        }
+      });
+    }
+  }
+
+  if (doc.unresolvedCriticalChallengeIds !== undefined) {
+    if (!Array.isArray(doc.unresolvedCriticalChallengeIds)) {
+      errors.push("eval_contract.unresolvedCriticalChallengeIds must be an array when provided");
+    } else {
+      const ids = new Set<string>();
+      doc.unresolvedCriticalChallengeIds.forEach((id, index) => {
+        if (!isNonEmptyString(id)) {
+          errors.push(`eval_contract.unresolvedCriticalChallengeIds[${index}] must be a non-empty string`);
+        } else if (ids.has(id)) {
+          errors.push(`eval_contract.unresolvedCriticalChallengeIds has duplicate id '${id}'`);
+        } else {
+          ids.add(id);
+        }
+      });
+      if (doc.overall === "PASS" && doc.unresolvedCriticalChallengeIds.length > 0) {
+        errors.push("eval_contract.overall must be FAIL when unresolvedCriticalChallengeIds are present");
+      }
+    }
+  }
+
   return errors;
 }
 
@@ -462,15 +648,24 @@ export function buildChallengeContract(
   const findings = content
     .split("\n")
     .map((line) => line.trim())
-    .filter((line) => /critical/i.test(line) && (line.startsWith("-") || line.startsWith("*")))
+    .filter((line) => /\b(critical|major)\b/i.test(line) && (line.startsWith("-") || line.startsWith("*")))
     .map((line, index) => ({
-      id: `crit-${String(index + 1).padStart(3, "0")}`,
-      severity: "critical" as const,
-      status: /addressed|resolved|fixed|mitigated|\[x\]/i.test(line) ? "resolved" as const : "open" as const,
+      id: `challenge-${String(index + 1).padStart(3, "0")}`,
+      severity: /\bcritical\b/i.test(line) ? "critical" as const : "major" as const,
+      status: /addressed|resolved|fixed|mitigated|dismissed|\[x\]/i.test(line) ? "resolved" as const : "open" as const,
       summary: line,
+      reproductionCommand: (() => {
+        const match = line.match(/(?:repro|cmd|command)\s*:\s*`?([^`]+)`?/i);
+        return match?.[1]?.trim();
+      })(),
+      evidence: (() => {
+        const match = line.match(/evidence\s*:\s*(.*)$/i);
+        return match?.[1]?.trim();
+      })(),
     }));
 
-  const unresolvedCriticalCount = findings.filter((finding) => finding.status === "open").length;
+  const unresolvedCriticalCount = findings.filter((finding) => finding.severity === "critical" && finding.status === "open").length;
+  const summary = firstMeaningfulParagraph(content);
   return {
     schemaVersion: "harness.phase1.v1",
     kind: "challenge_contract",
@@ -478,7 +673,12 @@ export function buildChallengeContract(
     createdAt: new Date().toISOString(),
     reportPath,
     overall: unresolvedCriticalCount > 0 ? "FAIL" : "PASS",
+    summary,
+    confidence: parseConfidenceRating(content),
     findings,
+    evidenceDemands: extractSectionBullets(content, ["demands for evidence", "evidence demands"]),
+    weakestPoints: extractSectionBullets(content, ["weakest points"]),
+    overconfidenceFlags: extractSectionBullets(content, ["overconfidence flags"]),
     unresolvedCriticalCount,
   };
 }
@@ -492,6 +692,10 @@ export function validateChallengeContract(doc: ChallengeContractDocument): strin
   if (!isNonEmptyString(doc.reportPath)) errors.push("challenge_contract.reportPath is required");
   if (isNonEmptyString(doc.reportPath) && !path.isAbsolute(doc.reportPath)) errors.push("challenge_contract.reportPath must be an absolute path");
   if (doc.overall !== "PASS" && doc.overall !== "FAIL") errors.push("challenge_contract.overall must be PASS or FAIL");
+  if (doc.summary !== undefined && !isNonEmptyString(doc.summary)) errors.push("challenge_contract.summary must be a non-empty string when provided");
+  if (doc.confidence !== undefined && (!Number.isFinite(doc.confidence) || doc.confidence < 1 || doc.confidence > 5)) {
+    errors.push("challenge_contract.confidence must be between 1 and 5 when provided");
+  }
   if (!Array.isArray(doc.findings)) {
     errors.push("challenge_contract.findings must be an array");
   } else {
@@ -504,8 +708,8 @@ export function validateChallengeContract(doc: ChallengeContractDocument): strin
       } else {
         ids.add(finding.id);
       }
-      if (finding?.severity !== "critical") {
-        errors.push(`challenge_contract.findings[${index}].severity must be 'critical'`);
+      if (finding?.severity !== "critical" && finding?.severity !== "major") {
+        errors.push(`challenge_contract.findings[${index}].severity must be 'critical' or 'major'`);
       }
       if (finding?.status !== "open" && finding?.status !== "resolved") {
         errors.push(`challenge_contract.findings[${index}].status must be open or resolved`);
@@ -513,16 +717,49 @@ export function validateChallengeContract(doc: ChallengeContractDocument): strin
       if (!isNonEmptyString(finding?.summary)) {
         errors.push(`challenge_contract.findings[${index}].summary must be a non-empty string`);
       }
+      if (finding?.evidence !== undefined && !isNonEmptyString(finding.evidence)) {
+        errors.push(`challenge_contract.findings[${index}].evidence must be a non-empty string when provided`);
+      }
+      if (finding?.reproductionCommand !== undefined && !isNonEmptyString(finding.reproductionCommand)) {
+        errors.push(`challenge_contract.findings[${index}].reproductionCommand must be a non-empty string when provided`);
+      }
     });
-    const unresolved = doc.findings.filter((finding) => finding.status === "open").length;
-    if (typeof doc.unresolvedCriticalCount === "number" && doc.unresolvedCriticalCount !== unresolved) {
+    const openCriticals = doc.findings.filter((finding) => finding.severity === "critical" && finding.status === "open").length;
+    if (typeof doc.unresolvedCriticalCount === "number" && doc.unresolvedCriticalCount !== openCriticals) {
       errors.push("challenge_contract.unresolvedCriticalCount must match number of open findings");
     }
-    if (doc.overall === "PASS" && unresolved > 0) {
+    if (doc.overall === "PASS" && openCriticals > 0) {
       errors.push("challenge_contract.overall must be FAIL when open findings exist");
     }
-    if (doc.overall === "FAIL" && unresolved === 0) {
+    if (doc.overall === "FAIL" && openCriticals === 0) {
       errors.push("challenge_contract.overall must be PASS when no open findings exist");
+    }
+  }
+  if (doc.evidenceDemands !== undefined) {
+    if (!Array.isArray(doc.evidenceDemands)) {
+      errors.push("challenge_contract.evidenceDemands must be an array when provided");
+    } else {
+      doc.evidenceDemands.forEach((item, index) => {
+        if (!isNonEmptyString(item)) errors.push(`challenge_contract.evidenceDemands[${index}] must be a non-empty string`);
+      });
+    }
+  }
+  if (doc.weakestPoints !== undefined) {
+    if (!Array.isArray(doc.weakestPoints)) {
+      errors.push("challenge_contract.weakestPoints must be an array when provided");
+    } else {
+      doc.weakestPoints.forEach((item, index) => {
+        if (!isNonEmptyString(item)) errors.push(`challenge_contract.weakestPoints[${index}] must be a non-empty string`);
+      });
+    }
+  }
+  if (doc.overconfidenceFlags !== undefined) {
+    if (!Array.isArray(doc.overconfidenceFlags)) {
+      errors.push("challenge_contract.overconfidenceFlags must be an array when provided");
+    } else {
+      doc.overconfidenceFlags.forEach((item, index) => {
+        if (!isNonEmptyString(item)) errors.push(`challenge_contract.overconfidenceFlags[${index}] must be a non-empty string`);
+      });
     }
   }
   if (typeof doc.unresolvedCriticalCount !== "number" || doc.unresolvedCriticalCount < 0) {

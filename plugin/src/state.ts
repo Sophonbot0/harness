@@ -86,6 +86,19 @@ export interface PlanContractDocument {
   contractItems: ContractItem[];
 }
 
+export interface EvalDodVerdict {
+  itemId?: string;
+  description: string;
+  verdict: "PASS" | "FAIL" | "BONUS_PASS" | "BONUS_FAIL";
+  evidence: string;
+}
+
+export interface EvalChallengeVerdict {
+  challengeId: string;
+  disposition: "CONFIRMED" | "DISMISSED";
+  evidence: string;
+}
+
 export interface EvalContractDocument {
   schemaVersion: "harness.phase1.v1";
   kind: "eval_contract";
@@ -95,13 +108,20 @@ export interface EvalContractDocument {
   overall: "PASS" | "FAIL";
   grade: string;
   summary: string;
+  confidence?: number;
+  rationale?: string;
+  dodVerdicts?: EvalDodVerdict[];
+  challengeVerdicts?: EvalChallengeVerdict[];
+  unresolvedCriticalChallengeIds?: string[];
 }
 
 export interface ChallengeFinding {
   id: string;
-  severity: "critical";
+  severity: "critical" | "major";
   status: "open" | "resolved";
   summary: string;
+  evidence?: string;
+  reproductionCommand?: string;
 }
 
 export interface ChallengeContractDocument {
@@ -111,7 +131,12 @@ export interface ChallengeContractDocument {
   createdAt: string;
   reportPath: string;
   overall: "PASS" | "FAIL";
+  summary?: string;
+  confidence?: number;
   findings: ChallengeFinding[];
+  evidenceDemands?: string[];
+  weakestPoints?: string[];
+  overconfidenceFlags?: string[];
   unresolvedCriticalCount: number;
 }
 
@@ -846,6 +871,8 @@ function deriveArtifactCompleteness(
       required: false,
       exists: fs.existsSync(options.evalReportPath),
     });
+  }
+  if (options.evalReportPath || options.evalContractPath) {
     optional.push({
       name: "eval_contract",
       path: options.evalContractPath ?? getEvalContractPath(path.dirname(runDir), path.basename(runDir)),
@@ -861,6 +888,8 @@ function deriveArtifactCompleteness(
       required: false,
       exists: fs.existsSync(options.challengeReportPath),
     });
+  }
+  if (options.challengeReportPath || options.challengeContractPath) {
     optional.push({
       name: "challenge_contract",
       path: options.challengeContractPath ?? getChallengeContractPath(path.dirname(runDir), path.basename(runDir)),
@@ -872,6 +901,8 @@ function deriveArtifactCompleteness(
   if (options.evalReportPath) {
     const evalReport = optional.find((artifact) => artifact.name === "eval_report");
     if (evalReport) evalReport.required = true;
+  }
+  if (options.evalReportPath || options.evalContractPath) {
     const evalContract = optional.find((artifact) => artifact.name === "eval_contract");
     if (evalContract) evalContract.required = true;
   }
@@ -879,6 +910,8 @@ function deriveArtifactCompleteness(
   if (options.challengeReportPath) {
     const challengeReport = optional.find((artifact) => artifact.name === "challenge_report");
     if (challengeReport) challengeReport.required = true;
+  }
+  if (options.challengeReportPath || options.challengeContractPath) {
     const challengeContract = optional.find((artifact) => artifact.name === "challenge_contract");
     if (challengeContract) challengeContract.required = true;
   }

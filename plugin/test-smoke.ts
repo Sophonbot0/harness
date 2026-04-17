@@ -225,6 +225,103 @@ All criteria verified.
   const statusResetData = (statusAfterReset as any).details;
   assert("Cancelled run shows status=cancelled", statusResetData?.status === "cancelled");
 
+  // --- Test 10b: harness_submit (structured-first contracts) ---
+  console.log("\n10b. harness_submit (structured-first contracts)");
+  fs.writeFileSync(planPath, `# Plan: Structured Submit Test\n\n## Feature 1: Structured\n- **DoD:**\n  - [ ] Structured criterion A\n  - [ ] Structured criterion B\n`);
+  const startStructured = await startTool.execute("test-10c", {
+    planPath,
+    taskDescription: "Structured contract submission",
+  });
+  const structuredRunId = (startStructured as any).details?.runId;
+  const structuredRunDir = path.join(runsDir, structuredRunId);
+  assert("Structured run started", typeof structuredRunId === "string");
+  await cpTool.execute("test-10d", {
+    phase: "eval",
+    completedFeatures: ["Structured criterion A", "Structured criterion B"],
+    pendingFeatures: [],
+    blockers: [],
+    summary: "Structured contract items complete",
+  });
+
+  const structuredEvalReportPath = path.join(planDir, "structured-eval-report.md");
+  const structuredChallengeReportPath = path.join(planDir, "structured-challenge-report.md");
+  const structuredEvalContractPath = path.join(planDir, "structured-eval.contract.json");
+  const structuredChallengeContractPath = path.join(planDir, "structured-challenge.contract.json");
+  fs.writeFileSync(structuredEvalReportPath, "# Eval Report Companion\n");
+  fs.writeFileSync(structuredChallengeReportPath, "# Challenge Report Companion\n");
+  fs.writeFileSync(structuredChallengeContractPath, JSON.stringify({
+    schemaVersion: "harness.phase1.v1",
+    kind: "challenge_contract",
+    runId: structuredRunId,
+    createdAt: new Date().toISOString(),
+    reportPath: structuredChallengeReportPath,
+    overall: "PASS",
+    summary: "All critical challenges resolved.",
+    confidence: 4,
+    findings: [
+      {
+        id: "challenge-001",
+        severity: "critical",
+        status: "resolved",
+        summary: "Resolved auth edge case",
+        evidence: "Added integration coverage",
+        reproductionCommand: "npm test -- auth",
+      },
+    ],
+    evidenceDemands: ["Run auth integration tests"],
+    weakestPoints: ["Session expiry handling"],
+    overconfidenceFlags: ["Generator claimed done before integration evidence"],
+    unresolvedCriticalCount: 0,
+  }, null, 2));
+  fs.writeFileSync(structuredEvalContractPath, JSON.stringify({
+    schemaVersion: "harness.phase1.v1",
+    kind: "eval_contract",
+    runId: structuredRunId,
+    createdAt: new Date().toISOString(),
+    reportPath: structuredEvalReportPath,
+    overall: "PASS",
+    grade: "PASS",
+    summary: "Structured evaluator verdict with explicit evidence.",
+    confidence: 5,
+    rationale: "All contract items and challenges were checked with evidence.",
+    dodVerdicts: [
+      {
+        itemId: "c001",
+        description: "Structured criterion A",
+        verdict: "PASS",
+        evidence: "Verified via test run",
+      },
+      {
+        itemId: "c002",
+        description: "Structured criterion B",
+        verdict: "PASS",
+        evidence: "Verified via file and behavior check",
+      },
+    ],
+    challengeVerdicts: [
+      {
+        challengeId: "challenge-001",
+        disposition: "DISMISSED",
+        evidence: "The reported issue is covered by auth integration tests.",
+      },
+    ],
+    unresolvedCriticalChallengeIds: [],
+  }, null, 2));
+
+  const structuredSubmit = await submitTool.execute("test-10e", {
+    evalContractPath: structuredEvalContractPath,
+    challengeContractPath: structuredChallengeContractPath,
+  });
+  const structuredSubmitData = (structuredSubmit as any).details;
+  assert("Structured-first submit delivers", structuredSubmitData?.delivered === true);
+  assert("Structured-first submit returns PASS", structuredSubmitData?.evalGrade === "PASS");
+  assert("Structured eval contract written to canonical run path", fs.existsSync(path.join(structuredRunDir, "eval.contract.json")));
+  assert("Structured challenge contract written to canonical run path", fs.existsSync(path.join(structuredRunDir, "challenge.contract.json")));
+  const structuredSummary = state.readRunSummary(runsDir, structuredRunId);
+  assert("Structured summary records eval contract path", structuredSummary?.artifacts?.evalContractPath?.endsWith("eval.contract.json") === true);
+  assert("Structured summary records challenge contract path", structuredSummary?.artifacts?.challengeContractPath?.endsWith("challenge.contract.json") === true);
+  assert("Structured summary can deliver without markdown report artifact", structuredSummary?.artifactCompleteness?.complete === true);
+
   // --- Test 11: Validation edge cases ---
   console.log("\n11. Validation edge cases");
   // Path traversal
@@ -439,6 +536,56 @@ All criteria verified.
     const challengeErrors = validation.validateChallengeContract(badChallenge);
     assert("Challenge validator catches unresolved count mismatch", challengeErrors.some((err) => err.includes("must match number of open findings")));
     assert("Challenge validator catches PASS with open findings", challengeErrors.some((err) => err.includes("must be FAIL when open findings exist")));
+
+    const richBadEval: state.EvalContractDocument = {
+      schemaVersion: "harness.phase1.v1",
+      kind: "eval_contract",
+      runId: "run-eval-rich",
+      createdAt: new Date().toISOString(),
+      reportPath: path.join(planDir, "eval-report.md"),
+      overall: "PASS",
+      grade: "PASS",
+      summary: "Summary",
+      confidence: 7,
+      dodVerdicts: [
+        { itemId: "c001", description: "Criterion", verdict: "FAIL", evidence: "Broken" },
+      ],
+      challengeVerdicts: [
+        { challengeId: "challenge-001", disposition: "CONFIRMED", evidence: "Evidence A" },
+        { challengeId: "challenge-001", disposition: "DISMISSED", evidence: "Evidence B" },
+      ],
+      unresolvedCriticalChallengeIds: ["challenge-001"],
+    };
+    const richEvalErrors = validation.validateEvalContract(richBadEval);
+    assert("Eval validator catches confidence out of range", richEvalErrors.some((err) => err.includes("confidence must be between 1 and 5")));
+    assert("Eval validator catches PASS with FAIL DoD verdict", richEvalErrors.some((err) => err.includes("overall must be FAIL when any core DoD verdict is FAIL")));
+    assert("Eval validator catches duplicate challenge verdict ids", richEvalErrors.some((err) => err.includes("duplicate challengeId")));
+    assert("Eval validator catches PASS with unresolved critical ids", richEvalErrors.some((err) => err.includes("overall must be FAIL when unresolvedCriticalChallengeIds are present")));
+
+    const richBadChallenge: state.ChallengeContractDocument = {
+      schemaVersion: "harness.phase1.v1",
+      kind: "challenge_contract",
+      runId: "run-challenge-rich",
+      createdAt: new Date().toISOString(),
+      reportPath: path.join(planDir, "challenge-report.md"),
+      overall: "PASS",
+      summary: "Summary",
+      confidence: 9,
+      findings: [
+        { id: "challenge-001", severity: "major", status: "resolved", summary: "Major issue" },
+        { id: "challenge-002", severity: "critical", status: "open", summary: "Open critical", reproductionCommand: "" },
+      ],
+      evidenceDemands: ["", "Run e2e"],
+      weakestPoints: [""],
+      overconfidenceFlags: [""],
+      unresolvedCriticalCount: 0,
+    };
+    const richChallengeErrors = validation.validateChallengeContract(richBadChallenge);
+    assert("Challenge validator catches confidence out of range", richChallengeErrors.some((err) => err.includes("confidence must be between 1 and 5")));
+    assert("Challenge validator catches empty reproduction command", richChallengeErrors.some((err) => err.includes("reproductionCommand must be a non-empty string")));
+    assert("Challenge validator catches empty evidence demand", richChallengeErrors.some((err) => err.includes("evidenceDemands[0] must be a non-empty string")));
+    assert("Challenge validator catches empty weakest point", richChallengeErrors.some((err) => err.includes("weakestPoints[0] must be a non-empty string")));
+    assert("Challenge validator catches empty overconfidence flag", richChallengeErrors.some((err) => err.includes("overconfidenceFlags[0] must be a non-empty string")));
   }
 
   // ─── Progress Bar Tests ───

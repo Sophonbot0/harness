@@ -45,6 +45,14 @@ function formatDuration(seconds: number): string {
 function classifySingleSubmitError(error: string): { code: string; domain: state.RunFailureDomain; summary: string } {
   const err = error.toLowerCase();
 
+  if (err.includes("cannot read eval contract")) {
+    return {
+      code: "eval_contract_missing",
+      domain: "environment",
+      summary: "The structured eval contract was missing or unreadable.",
+    };
+  }
+
   if (err.includes("cannot read eval report")) {
     return {
       code: "eval_report_missing",
@@ -77,6 +85,14 @@ function classifySingleSubmitError(error: string): { code: string; domain: state
     };
   }
 
+  if (err.includes("cannot read challenge contract")) {
+    return {
+      code: "challenge_contract_missing",
+      domain: "environment",
+      summary: "The structured challenge contract was missing or unreadable.",
+    };
+  }
+
   if (err.includes("cannot read challenge report")) {
     return {
       code: "challenge_report_missing",
@@ -101,7 +117,7 @@ function classifySingleSubmitError(error: string): { code: string; domain: state
     };
   }
 
-  if (err.includes("eval report indicates fail")) {
+  if (err.includes("eval report indicates fail") || err.includes("overall=fail")) {
     return {
       code: "eval_report_failed",
       domain: "harness",
@@ -1052,7 +1068,7 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
     name: "harness_submit",
     label: "Harness Submit",
     description:
-      "Quality gate for delivering harness results. Validates that the eval report passes, " +
+      "Quality gate for delivering harness results. Validates structured eval/challenge contracts, " +
       "all DoD items are checked, and no critical challenges remain unaddressed. " +
       "Only delivers if all checks pass; otherwise returns structured errors.",
     parameters: {
@@ -1060,29 +1076,49 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
       properties: {
         evalReportPath: {
           type: "string",
-          description: "Absolute path to the eval-report.md file.",
+          description: "Optional absolute path to the eval-report.md file. Used to derive eval.contract.json when evalContractPath is omitted.",
+        },
+        evalContractPath: {
+          type: "string",
+          description: "Optional absolute path to an existing eval.contract.json. Structured-first preferred input.",
         },
         challengeReportPath: {
           type: "string",
-          description: "Optional absolute path to the challenge-report.md file.",
+          description: "Optional absolute path to the challenge-report.md file. Used to derive challenge.contract.json when challengeContractPath is omitted.",
+        },
+        challengeContractPath: {
+          type: "string",
+          description: "Optional absolute path to an existing challenge.contract.json.",
         },
         nextPlanPath: {
           type: "string",
           description: "Optional path to next plan. On successful delivery, returns instructions to auto-start the next run.",
         },
       },
-      required: ["evalReportPath"],
+      required: [],
     },
     async execute(_toolCallId, params) {
       try {
         const p = params as Record<string, unknown>;
-        const evalReportPath = validation.sanitizePath(
-          validation.readStringParam(p, "evalReportPath"),
-          "evalReportPath",
-        );
-        const rawChallengePath = validation.readOptionalStringParam(p, "challengeReportPath");
-        const challengeReportPath = rawChallengePath
-          ? validation.sanitizePath(rawChallengePath, "challengeReportPath")
+        const rawEvalReportPath = validation.readOptionalStringParam(p, "evalReportPath");
+        const rawEvalContractPath = validation.readOptionalStringParam(p, "evalContractPath");
+        const rawChallengeReportPath = validation.readOptionalStringParam(p, "challengeReportPath");
+        const rawChallengeContractPath = validation.readOptionalStringParam(p, "challengeContractPath");
+        if (!rawEvalReportPath && !rawEvalContractPath) {
+          throw new Error("One of 'evalReportPath' or 'evalContractPath' is required");
+        }
+
+        const evalReportPath = rawEvalReportPath
+          ? validation.sanitizePath(rawEvalReportPath, "evalReportPath")
+          : undefined;
+        const submittedEvalContractPath = rawEvalContractPath
+          ? validation.sanitizePath(rawEvalContractPath, "evalContractPath")
+          : undefined;
+        const challengeReportPath = rawChallengeReportPath
+          ? validation.sanitizePath(rawChallengeReportPath, "challengeReportPath")
+          : undefined;
+        const submittedChallengeContractPath = rawChallengeContractPath
+          ? validation.sanitizePath(rawChallengeContractPath, "challengeContractPath")
           : undefined;
         const rawNextPlan = validation.readOptionalStringParam(p, "nextPlanPath");
 
@@ -1099,6 +1135,10 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
         const warnings: string[] = [];
         const evalContractPath = state.getEvalContractPath(runsDir, runId);
         const challengeContractPath = state.getChallengeContractPath(runsDir, runId);
+        let evalContent: string | null = null;
+        let evalContract: state.EvalContractDocument | null = null;
+        let challengeContent: string | null = null;
+        let challengeContract: state.ChallengeContractDocument | null = null;
 
         // 0. Validate structured plan contract (Phase 1 fail-closed)
         const planContract = state.readPlanContract(runsDir, runId);
@@ -1121,39 +1161,56 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
               stdio: ["pipe", "pipe", "pipe"],
               env: { ...process.env, CI: "true" },
             });
-            // Check for test failures in output
-            const hasFailure = /fail|error|FAIL|ERROR|\u2717|\u2718|FAILED/i.test(verifyOutput)
+            const hasFailure = /fail|error|FAIL|ERROR|✗|✘|FAILED/i.test(verifyOutput)
               && !/0 fail/i.test(verifyOutput) && !/0 error/i.test(verifyOutput);
             if (hasFailure) {
-              errors.push(`Verify command failed:\n${verifyOutput.slice(-500)}`);
+              errors.push(`Verify command failed:
+${verifyOutput.slice(-500)}`);
             }
           } catch (verifyErr) {
             const msg = verifyErr instanceof Error ? (verifyErr as { stderr?: string }).stderr ?? verifyErr.message : String(verifyErr);
-            errors.push(`Verify command '${runState.verifyCommand}' failed:\n${String(msg).slice(-500)}`);
+            errors.push(`Verify command '${runState.verifyCommand}' failed:
+${String(msg).slice(-500)}`);
           }
         }
 
-        // 1. Check eval report
-        let evalContent: string | null = null;
-        evalContent = validation.safeReadFile(evalReportPath);
-        if (evalContent === null) {
-          errors.push(`Cannot read eval report: ${evalReportPath}`);
-        } else {
-          try {
-            const evalContract = validation.buildEvalContract(runId, evalReportPath, evalContent);
-            const evalContractErrors = validation.validateEvalContract(evalContract);
-            if (evalContractErrors.length > 0) {
-              errors.push(`Eval contract invalid: ${evalContractErrors.join("; ")}`);
-            } else {
-              state.writeEvalContract(runsDir, runId, evalContract);
-            }
-          } catch (evalContractErr) {
-            errors.push(evalContractErr instanceof Error ? evalContractErr.message : String(evalContractErr));
+        // 1. Load eval contract (structured-first; markdown fallback)
+        if (submittedEvalContractPath) {
+          evalContract = validation.safeReadJson<state.EvalContractDocument>(submittedEvalContractPath);
+          if (evalContract === null) {
+            errors.push(`Cannot read eval contract: ${submittedEvalContractPath}`);
           }
-
-          const evalCheck = validation.checkEvalReport(evalContent);
-          if (!evalCheck.passed) {
-            errors.push(evalCheck.reason);
+        }
+        if (!evalContract && evalReportPath) {
+          evalContent = validation.safeReadFile(evalReportPath);
+          if (evalContent === null) {
+            errors.push(`Cannot read eval report: ${evalReportPath}`);
+          } else {
+            try {
+              evalContract = validation.buildEvalContract(runId, evalReportPath, evalContent);
+            } catch (evalContractErr) {
+              errors.push(evalContractErr instanceof Error ? evalContractErr.message : String(evalContractErr));
+            }
+          }
+        }
+        if (!evalContract) {
+          errors.push("Eval contract missing: provide a valid evalContractPath or readable evalReportPath");
+        } else {
+          const evalContractErrors = validation.validateEvalContract(evalContract);
+          if (evalContractErrors.length > 0) {
+            errors.push(`Eval contract invalid: ${evalContractErrors.join("; ")}`);
+          }
+          if (evalContract.runId !== runId) {
+            errors.push(`Eval contract invalid: runId must match active run (${runId})`);
+          }
+          if (evalReportPath && evalContract.reportPath !== evalReportPath) {
+            warnings.push(`Eval contract reportPath (${evalContract.reportPath}) differs from provided evalReportPath (${evalReportPath}).`);
+          }
+          if (evalContract.overall !== "PASS") {
+            errors.push(`Eval report indicates FAIL: overall=${evalContract.overall}`);
+          }
+          if (errors.every((err) => !err.startsWith("Eval contract invalid:") && !err.startsWith("Cannot read eval contract:") && !err.startsWith("Eval contract missing:"))) {
+            state.writeEvalContract(runsDir, runId, evalContract);
           }
         }
 
@@ -1167,7 +1224,6 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
           }
         }
 
-        // 2b. Check contract items (all must be passed)
         const contractItems = state.readContract(runsDir, runId);
         if (contractItems.length > 0) {
           const notPassed = contractItems.filter(c => c.status !== "passed" && c.status !== "skipped");
@@ -1178,7 +1234,6 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
             );
           }
 
-          // Check for items that exhausted retries
           const exhausted = contractItems.filter(c => c.status === "failed" && c.attempts >= c.maxAttempts);
           if (exhausted.length > 0) {
             warnings.push(
@@ -1188,27 +1243,61 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
           }
         }
 
-        // 3. Check challenge report if provided
-        if (challengeReportPath) {
-          const challengeContent = validation.safeReadFile(challengeReportPath);
+        // 3. Load challenge contract (structured-first; markdown fallback)
+        if (submittedChallengeContractPath) {
+          challengeContract = validation.safeReadJson<state.ChallengeContractDocument>(submittedChallengeContractPath);
+          if (challengeContract === null) {
+            errors.push(`Cannot read challenge contract: ${submittedChallengeContractPath}`);
+          }
+        }
+        if (!challengeContract && challengeReportPath) {
+          challengeContent = validation.safeReadFile(challengeReportPath);
           if (challengeContent === null) {
             errors.push(`Cannot read challenge report: ${challengeReportPath}`);
           } else {
-            const challengeContract = validation.buildChallengeContract(runId, challengeReportPath, challengeContent);
-            const challengeContractErrors = validation.validateChallengeContract(challengeContract);
-            if (challengeContractErrors.length > 0) {
-              errors.push(`Challenge contract invalid: ${challengeContractErrors.join("; ")}`);
-            } else {
-              state.writeChallengeContract(runsDir, runId, challengeContract);
-            }
+            challengeContract = validation.buildChallengeContract(runId, challengeReportPath, challengeContent);
+          }
+        }
+        if (challengeContract) {
+          const challengeContractErrors = validation.validateChallengeContract(challengeContract);
+          if (challengeContractErrors.length > 0) {
+            errors.push(`Challenge contract invalid: ${challengeContractErrors.join("; ")}`);
+          }
+          if (challengeContract.runId !== runId) {
+            errors.push(`Challenge contract invalid: runId must match active run (${runId})`);
+          }
+          if (challengeReportPath && challengeContract.reportPath !== challengeReportPath) {
+            warnings.push(`Challenge contract reportPath (${challengeContract.reportPath}) differs from provided challengeReportPath (${challengeReportPath}).`);
+          }
+          if (challengeContract.unresolvedCriticalCount > 0) {
+            const criticalIds = challengeContract.findings
+              .filter((finding) => finding.severity === "critical" && finding.status === "open")
+              .map((finding) => finding.id);
+            errors.push(
+              `${criticalIds.length} unaddressed CRITICAL challenge(s):\n` +
+                criticalIds.map((id) => `  ${id}`).join("\n"),
+            );
+          }
+          if (!errors.some((err) => err.startsWith("Challenge contract invalid:") || err.startsWith("Cannot read challenge contract:"))) {
+            state.writeChallengeContract(runsDir, runId, challengeContract);
+          }
+        }
 
-            const criticals = validation.findUnaddressedCriticals(challengeContent);
-            if (criticals.length > 0) {
-              errors.push(
-                `${criticals.length} unaddressed CRITICAL challenge(s):\n` +
-                  criticals.map((c) => `  ${c}`).join("\n"),
-              );
+        // 3b. Cross-check eval vs challenge structured artifacts
+        if (evalContract && challengeContract) {
+          const challengeIds = new Set(challengeContract.findings.map((finding) => finding.id));
+          for (const unresolvedId of evalContract.unresolvedCriticalChallengeIds ?? []) {
+            if (!challengeIds.has(unresolvedId)) {
+              errors.push(`Eval contract invalid: unresolved critical challenge id '${unresolvedId}' not found in challenge contract`);
             }
+          }
+          for (const verdict of evalContract.challengeVerdicts ?? []) {
+            if (!challengeIds.has(verdict.challengeId)) {
+              errors.push(`Eval contract invalid: challenge verdict references unknown challenge '${verdict.challengeId}'`);
+            }
+          }
+          if (evalContract.overall === "PASS" && challengeContract.unresolvedCriticalCount > 0) {
+            errors.push("Eval contract invalid: PASS is inconsistent with unresolved critical challenges");
           }
         }
 
@@ -1219,35 +1308,32 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
           if (unverified.length > 0) {
             warnings.push(
               `${unverified.length} feature(s) marked passed without verification evidence:\n` +
-                unverified.map(f => `  ⚠️ ${f.description}`).join("\n")
+                unverified.map(f => `  ⚠️ ${f.description}`).join("\n"),
             );
           }
         }
 
         if (errors.length > 0) {
           const MAX_ROUNDS = 3;
-          // Generate recovery hints based on what failed
           const hints: string[] = [];
           for (const err of errors) {
-            if (err.includes("unchecked DoD")) {
-              hints.push("ACTION: Open the plan file and check off completed items, or verify and complete the remaining ones.");
-            } else if (err.includes("FAIL")) {
-              hints.push("ACTION: Review the eval report, fix the failing criteria, and re-run evaluation.");
-            } else if (err.includes("CRITICAL")) {
-              hints.push("ACTION: Address each critical challenge — add mitigations or mark as resolved in the challenge report.");
+            if (err.includes("contract item(s) not completed")) {
+              hints.push("ACTION: Finish the remaining contract items or explicitly skip them with justification.");
+            } else if (err.includes("Eval report indicates FAIL") || err.includes("Eval contract invalid")) {
+              hints.push("ACTION: Fix the failing evaluator findings and regenerate a valid eval contract with explicit verdict evidence.");
+            } else if (err.includes("Challenge contract invalid") || err.includes("CRITICAL challenge")) {
+              hints.push("ACTION: Resolve or explicitly dismiss every critical challenge and regenerate the challenge contract.");
             } else if (err.includes("Cannot read")) {
-              hints.push("ACTION: Ensure the report file exists at the specified path. Write it if missing.");
+              hints.push("ACTION: Ensure the referenced artifact exists at the provided path before calling submit again.");
             }
           }
 
-          // Iterative loop: increment round, return to build phase
           if (runState.round < MAX_ROUNDS) {
             const classification = classifySubmitOutcome(errors, false);
             runState.round += 1;
             runState.phase = "build";
             state.writeRunState(runsDir, runId, runState);
 
-            // Append iteration checkpoint
             const iterCheckpoint: state.Checkpoint = {
               timestamp: new Date().toISOString(),
               phase: "iteration",
@@ -1315,7 +1401,6 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
             return jsonResult(iterResult);
           }
 
-          // Max rounds reached — hard fail
           const classification = classifySubmitOutcome(errors, true);
           runState.status = "failed";
           state.writeRunState(runsDir, runId, runState);
@@ -1348,17 +1433,11 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
           });
         }
 
-        // All checks passed — deliver (with lock)
         const result = state.withLock(runId, () => {
           const elapsed = elapsedSeconds(runState.startedAt);
           const checkpoints = state.readCheckpoints(runsDir, runId);
           const lastCheckpoint = checkpoints.length > 0 ? checkpoints[checkpoints.length - 1] : null;
-
-          let evalGrade = "PASS";
-          if (evalContent) {
-            const gradeMatch = evalContent.match(/overall\s*:\s*(\S+)/i);
-            if (gradeMatch) evalGrade = gradeMatch[1];
-          }
+          const evalGrade = evalContract?.grade ?? "PASS";
 
           const delivery: state.Delivery = {
             deliveredAt: new Date().toISOString(),
@@ -1379,16 +1458,14 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
             evalReportPath,
             evalContractPath,
             challengeReportPath,
-            challengeContractPath: challengeReportPath ? challengeContractPath : undefined,
+            challengeContractPath: fs.existsSync(challengeContractPath) ? challengeContractPath : undefined,
             warnings,
             plannerStatus: "completed",
             generatorStatus: "completed",
-            adversaryStatus: "completed",
+            adversaryStatus: challengeContract ? "completed" : "not_started",
             evaluatorStatus: "completed",
           });
 
-          // Auto-render final status bar
-          // On PASS: force 100% — all features are complete (DoD was validated)
           const dodItems = state.readDodItems(runsDir, runId);
           const allFeatureNames = lastCheckpoint
             ? [...lastCheckpoint.completedFeatures, ...lastCheckpoint.pendingFeatures]
@@ -1398,9 +1475,9 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
             status: "pass",
             evalGrade,
             dodTotal: dodItems.length,
-            dodCompleted: dodItems.length, // PASS = 100%
+            dodCompleted: dodItems.length,
             elapsedSeconds: elapsed,
-            completedFeatures: allFeatureNames, // All features are done on PASS
+            completedFeatures: allFeatureNames,
             pendingFeatures: [],
             blockers: [],
           });
@@ -1415,11 +1492,12 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
             checkpointCount: checkpoints.length,
             message: "All quality gates passed. Run delivered successfully.",
             progressBar,
+            evalContractPath,
+            ...(fs.existsSync(challengeContractPath) ? { challengeContractPath } : {}),
             runSummaryPath: `${state.getRunDir(runsDir, runId)}/run-summary.json`,
             ...(warnings.length > 0 ? { warnings } : {}),
           };
 
-          // Telegram is auto-managed by the plugin hook — pass IDs so it can edit final bar
           if (runState.telegramChatId) {
             res.telegramAutoManaged = true;
             res.telegramChatId = runState.telegramChatId;
@@ -1427,80 +1505,13 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
             if (runState.telegramThreadId) res.telegramThreadId = runState.telegramThreadId;
           }
 
-          // Run chaining — auto-continue to next plan
           if (rawNextPlan) {
-            res.nextPlanPath = rawNextPlan;
-            res.autoChain = true;
-            res.chainingInstruction =
-              `🔗 AUTO-CHAIN: This run is complete. Immediately call harness_start with planPath="${rawNextPlan}" ` +
-              `to start the next run. Do NOT wait for user input. Carry forward the telegramChatId and telegramThreadId. ` +
-              `Use parentRunId="${runId}" to link the runs.`;
-          }
-
-          // Manifest-aware auto-chain — update manifest and find next plan
-          const manifest = state.findManifestByRunId(runsDir, runId);
-          if (manifest) {
-            // Mark this plan as completed in the manifest
-            const thisPlan = manifest.plans.find(p => p.runId === runId);
-            if (thisPlan) {
-              thisPlan.status = "completed";
-              thisPlan.evalGrade = evalGrade;
-              thisPlan.completedAt = new Date().toISOString();
-            }
-
-            // Check if all plans are done
-            const allDone = manifest.plans.every(p => p.status === "completed" || p.status === "skipped");
-            if (allDone) {
-              manifest.status = "completed";
-              state.writeManifest(runsDir, manifest);
-              res.manifestCompleted = true;
-              res.manifestId = manifest.manifestId;
-              res.manifestMessage = `🎉 All ${manifest.plans.length} phases completed! Project "${manifest.projectDescription}" is done.`;
-            } else {
-              // Find next plan(s)
-              const nextPlan = state.getNextPendingPlan(manifest);
-              const parallelReady = state.getParallelReadyPlans(manifest);
-
-              if (nextPlan && !rawNextPlan) {
-                // Auto-chain to next plan from manifest
-                manifest.currentPhase = nextPlan.phase;
-                state.writeManifest(runsDir, manifest);
-
-                res.nextPlanPath = nextPlan.path;
-                res.autoChain = true;
-                res.manifestId = manifest.manifestId;
-                res.manifestPhase = `${nextPlan.phase}/${manifest.plans.length}`;
-                res.chainingInstruction =
-                  `🔗 MANIFEST CHAIN: Phase ${nextPlan.phase}/${manifest.plans.length} — "${nextPlan.title}". ` +
-                  `Immediately call harness_start with planPath="${nextPlan.path}" ` +
-                  `and parentRunId="${manifest.manifestId}". Do NOT wait for user input. ` +
-                  `Carry forward telegramChatId and telegramThreadId.`;
-
-                if (parallelReady.length > 1) {
-                  res.parallelPlans = parallelReady.map(p => ({
-                    phase: p.phase,
-                    title: p.title,
-                    path: p.path,
-                  }));
-                  // Build spawn instructions for each parallel plan
-                  const spawnInstructions = parallelReady
-                    .filter(p => p.phase !== nextPlan.phase) // Exclude the one we're auto-chaining to
-                    .map(p =>
-                      `sessions_spawn({ task: "Execute harness plan: ${p.title}", ` +
-                      `label: "harness-phase-${p.phase}" }) — then inside the subagent: ` +
-                      `harness_start({ planPath: "${p.path}", parentRunId: "${manifest.manifestId}", ` +
-                      `isSubagent: true })`
-                    );
-                  res.parallelHint =
-                    `🔀 ${parallelReady.length} plans can run in parallel! ` +
-                    `You are auto-chaining to Phase ${nextPlan.phase}. ` +
-                    `Spawn subagents for the rest:\n` +
-                    spawnInstructions.join("\n");
-                }
-              } else {
-                state.writeManifest(runsDir, manifest);
-              }
-            }
+            const nextPlanPath = validation.sanitizePath(rawNextPlan, "nextPlanPath");
+            res.nextAction = {
+              type: "auto_start_next_run",
+              instruction: `Call harness_start with planPath='${nextPlanPath}' and taskDescription='<describe next phase>'`,
+              nextPlanPath,
+            };
           }
 
           return res;
@@ -1515,8 +1526,6 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
     },
   };
 }
-
-// ─── harness_status ───
 
 export function createHarnessResetTool(runsDir: string, sessionCtx: SessionContext): AnyAgentTool {
   return {
