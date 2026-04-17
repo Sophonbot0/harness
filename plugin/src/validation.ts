@@ -1,12 +1,14 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import type { Feature } from "./state.js";
-
-export interface DodItem {
-  text: string;
-  checked: boolean;
-}
+import type {
+  ChallengeContractDocument,
+  ContractItem,
+  DodItem,
+  EvalContractDocument,
+  Feature,
+  PlanContractDocument,
+} from "./state.js";
 
 // ─── Parameter Validation Helpers (HIGH 1) ───
 
@@ -124,6 +126,52 @@ export function checkEvalReport(content: string): { passed: boolean; reason: str
   return { passed: false, reason: "Eval report does not contain 'Overall: PASS' — cannot verify passing grade" };
 }
 
+function firstMeaningfulParagraph(content: string): string {
+  for (const rawLine of content.split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (line.startsWith("#")) continue;
+    if (/^overall\s*:/i.test(line)) continue;
+    return line;
+  }
+  return "No summary provided.";
+}
+
+export function buildEvalContract(
+  runId: string,
+  reportPath: string,
+  content: string,
+): EvalContractDocument {
+  const overallMatch = content.match(/overall\s*:\s*(pass|fail)\b/i);
+  if (!overallMatch) {
+    throw new Error("Eval report is missing a machine-checkable 'Overall: PASS|FAIL' marker.");
+  }
+
+  const overall = overallMatch[1].toUpperCase() as "PASS" | "FAIL";
+  return {
+    schemaVersion: "harness.phase1.v1",
+    kind: "eval_contract",
+    runId,
+    createdAt: new Date().toISOString(),
+    reportPath,
+    overall,
+    grade: overall,
+    summary: firstMeaningfulParagraph(content),
+  };
+}
+
+export function validateEvalContract(doc: EvalContractDocument): string[] {
+  const errors: string[] = [];
+  if (doc.schemaVersion !== "harness.phase1.v1") errors.push("eval_contract.schemaVersion must be harness.phase1.v1");
+  if (doc.kind !== "eval_contract") errors.push("eval_contract.kind must be eval_contract");
+  if (!doc.runId) errors.push("eval_contract.runId is required");
+  if (!doc.reportPath) errors.push("eval_contract.reportPath is required");
+  if (doc.overall !== "PASS" && doc.overall !== "FAIL") errors.push("eval_contract.overall must be PASS or FAIL");
+  if (!doc.grade) errors.push("eval_contract.grade is required");
+  if (!doc.summary) errors.push("eval_contract.summary is required");
+  return errors;
+}
+
 /** Check challenge report for unaddressed CRITICAL issues. */
 export function findUnaddressedCriticals(content: string): string[] {
   const lines = content.split("\n");
@@ -154,6 +202,83 @@ export function findUnaddressedCriticals(content: string): string[] {
 export function findUncheckedDod(planContent: string): string[] {
   const items = extractDodItems(planContent);
   return items.filter((i) => !i.checked).map((i) => i.text);
+}
+
+export function buildPlanContract(
+  runId: string,
+  taskDescription: string,
+  planPath: string,
+  dodItems: DodItem[],
+  features: Feature[],
+  contractItems: ContractItem[],
+  verifyCommand?: string,
+): PlanContractDocument {
+  return {
+    schemaVersion: "harness.phase1.v1",
+    kind: "plan_contract",
+    runId,
+    taskDescription,
+    createdAt: new Date().toISOString(),
+    planPath,
+    ...(verifyCommand ? { verifyCommand } : {}),
+    dodItems,
+    features,
+    contractItems,
+  };
+}
+
+export function validatePlanContract(doc: PlanContractDocument): string[] {
+  const errors: string[] = [];
+  if (doc.schemaVersion !== "harness.phase1.v1") errors.push("plan_contract.schemaVersion must be harness.phase1.v1");
+  if (doc.kind !== "plan_contract") errors.push("plan_contract.kind must be plan_contract");
+  if (!doc.runId) errors.push("plan_contract.runId is required");
+  if (!doc.taskDescription) errors.push("plan_contract.taskDescription is required");
+  if (!doc.planPath) errors.push("plan_contract.planPath is required");
+  if (!Array.isArray(doc.dodItems)) errors.push("plan_contract.dodItems must be an array");
+  if (!Array.isArray(doc.features)) errors.push("plan_contract.features must be an array");
+  if (!Array.isArray(doc.contractItems) || doc.contractItems.length === 0) errors.push("plan_contract.contractItems must be a non-empty array");
+  return errors;
+}
+
+export function buildChallengeContract(
+  runId: string,
+  reportPath: string,
+  content: string,
+): ChallengeContractDocument {
+  const findings = content
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => /critical/i.test(line) && (line.startsWith("-") || line.startsWith("*")))
+    .map((line, index) => ({
+      id: `crit-${String(index + 1).padStart(3, "0")}`,
+      severity: "critical" as const,
+      status: /addressed|resolved|fixed|mitigated|\[x\]/i.test(line) ? "resolved" as const : "open" as const,
+      summary: line,
+    }));
+
+  const unresolvedCriticalCount = findings.filter((finding) => finding.status === "open").length;
+  return {
+    schemaVersion: "harness.phase1.v1",
+    kind: "challenge_contract",
+    runId,
+    createdAt: new Date().toISOString(),
+    reportPath,
+    overall: unresolvedCriticalCount > 0 ? "FAIL" : "PASS",
+    findings,
+    unresolvedCriticalCount,
+  };
+}
+
+export function validateChallengeContract(doc: ChallengeContractDocument): string[] {
+  const errors: string[] = [];
+  if (doc.schemaVersion !== "harness.phase1.v1") errors.push("challenge_contract.schemaVersion must be harness.phase1.v1");
+  if (doc.kind !== "challenge_contract") errors.push("challenge_contract.kind must be challenge_contract");
+  if (!doc.runId) errors.push("challenge_contract.runId is required");
+  if (!doc.reportPath) errors.push("challenge_contract.reportPath is required");
+  if (doc.overall !== "PASS" && doc.overall !== "FAIL") errors.push("challenge_contract.overall must be PASS or FAIL");
+  if (!Array.isArray(doc.findings)) errors.push("challenge_contract.findings must be an array");
+  if (typeof doc.unresolvedCriticalCount !== "number") errors.push("challenge_contract.unresolvedCriticalCount must be a number");
+  return errors;
 }
 
 /**
@@ -211,8 +336,6 @@ export function extractFeatures(content: string): Feature[] {
 
   return features;
 }
-
-import type { ContractItem } from "./state.js";
 
 /**
  * Extract contract items from a markdown plan.

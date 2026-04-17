@@ -72,6 +72,48 @@ export interface Delivery {
   checkpointCount: number;
 }
 
+export interface PlanContractDocument {
+  schemaVersion: "harness.phase1.v1";
+  kind: "plan_contract";
+  runId: string;
+  taskDescription: string;
+  createdAt: string;
+  planPath: string;
+  verifyCommand?: string;
+  dodItems: DodItem[];
+  features: Feature[];
+  contractItems: ContractItem[];
+}
+
+export interface EvalContractDocument {
+  schemaVersion: "harness.phase1.v1";
+  kind: "eval_contract";
+  runId: string;
+  createdAt: string;
+  reportPath: string;
+  overall: "PASS" | "FAIL";
+  grade: string;
+  summary: string;
+}
+
+export interface ChallengeFinding {
+  id: string;
+  severity: "critical";
+  status: "open" | "resolved";
+  summary: string;
+}
+
+export interface ChallengeContractDocument {
+  schemaVersion: "harness.phase1.v1";
+  kind: "challenge_contract";
+  runId: string;
+  createdAt: string;
+  reportPath: string;
+  overall: "PASS" | "FAIL";
+  findings: ChallengeFinding[];
+  unresolvedCriticalCount: number;
+}
+
 export type PhaseExecutionStatus =
   | "not_started"
   | "in_progress"
@@ -148,10 +190,13 @@ export interface RunSummary {
     checkpointsPath: string;
     planPath: string;
     contractPath: string;
+    planContractPath: string;
     progressPath: string;
     deliveryPath: string;
     evalReportPath?: string;
+    evalContractPath?: string;
     challengeReportPath?: string;
+    challengeContractPath?: string;
   };
   artifactCompleteness: ArtifactCompleteness;
   dataQuality: DataQualityAssessment;
@@ -167,7 +212,9 @@ export interface RunSummary {
 
 export interface RunSummaryOptions {
   evalReportPath?: string;
+  evalContractPath?: string;
   challengeReportPath?: string;
+  challengeContractPath?: string;
   finalOutcome?: string;
   failureDomain?: RunFailureDomain;
   failureCode?: string;
@@ -409,6 +456,54 @@ export function readContract(runsDir: string, runId: string): ContractItem[] {
   if (!fs.existsSync(p)) return [];
   const content = fs.readFileSync(p, "utf-8");
   return safeParseJson<ContractItem[]>(content, p);
+}
+
+export function getPlanContractPath(runsDir: string, runId: string): string {
+  return path.join(getRunDir(runsDir, runId), "plan.contract.json");
+}
+
+export function getEvalContractPath(runsDir: string, runId: string): string {
+  return path.join(getRunDir(runsDir, runId), "eval.contract.json");
+}
+
+export function getChallengeContractPath(runsDir: string, runId: string): string {
+  return path.join(getRunDir(runsDir, runId), "challenge.contract.json");
+}
+
+export function writePlanContract(runsDir: string, runId: string, doc: PlanContractDocument): void {
+  const dir = getRunDir(runsDir, runId);
+  ensureDir(dir);
+  safeWriteFile(getPlanContractPath(runsDir, runId), JSON.stringify(doc, null, 2));
+}
+
+export function readPlanContract(runsDir: string, runId: string): PlanContractDocument | null {
+  const p = getPlanContractPath(runsDir, runId);
+  if (!fs.existsSync(p)) return null;
+  return safeParseJson<PlanContractDocument>(fs.readFileSync(p, "utf-8"), p);
+}
+
+export function writeEvalContract(runsDir: string, runId: string, doc: EvalContractDocument): void {
+  const dir = getRunDir(runsDir, runId);
+  ensureDir(dir);
+  safeWriteFile(getEvalContractPath(runsDir, runId), JSON.stringify(doc, null, 2));
+}
+
+export function readEvalContract(runsDir: string, runId: string): EvalContractDocument | null {
+  const p = getEvalContractPath(runsDir, runId);
+  if (!fs.existsSync(p)) return null;
+  return safeParseJson<EvalContractDocument>(fs.readFileSync(p, "utf-8"), p);
+}
+
+export function writeChallengeContract(runsDir: string, runId: string, doc: ChallengeContractDocument): void {
+  const dir = getRunDir(runsDir, runId);
+  ensureDir(dir);
+  safeWriteFile(getChallengeContractPath(runsDir, runId), JSON.stringify(doc, null, 2));
+}
+
+export function readChallengeContract(runsDir: string, runId: string): ChallengeContractDocument | null {
+  const p = getChallengeContractPath(runsDir, runId);
+  if (!fs.existsSync(p)) return null;
+  return safeParseJson<ChallengeContractDocument>(fs.readFileSync(p, "utf-8"), p);
 }
 
 /** Get the next actionable contract item (respects dependencies). */
@@ -700,6 +795,7 @@ function deriveArtifactCompleteness(
     { name: "run_state", path: path.join(runDir, "run-state.json"), required: true, exists: fs.existsSync(path.join(runDir, "run-state.json")) },
     { name: "plan", path: runState.planPath, required: true, exists: fs.existsSync(runState.planPath) },
     { name: "contract", path: path.join(runDir, "contract.json"), required: true, exists: fs.existsSync(path.join(runDir, "contract.json")) },
+    { name: "plan_contract", path: getPlanContractPath(path.dirname(runDir), path.basename(runDir)), required: true, exists: fs.existsSync(getPlanContractPath(path.dirname(runDir), path.basename(runDir))) },
     { name: "run_summary", path: path.join(runDir, "run-summary.json"), required: true, exists: true },
   ];
 
@@ -716,6 +812,12 @@ function deriveArtifactCompleteness(
       required: false,
       exists: fs.existsSync(options.evalReportPath),
     });
+    optional.push({
+      name: "eval_contract",
+      path: options.evalContractPath ?? getEvalContractPath(path.dirname(runDir), path.basename(runDir)),
+      required: false,
+      exists: fs.existsSync(options.evalContractPath ?? getEvalContractPath(path.dirname(runDir), path.basename(runDir))),
+    });
   }
 
   if (options.challengeReportPath) {
@@ -725,13 +827,31 @@ function deriveArtifactCompleteness(
       required: false,
       exists: fs.existsSync(options.challengeReportPath),
     });
+    optional.push({
+      name: "challenge_contract",
+      path: options.challengeContractPath ?? getChallengeContractPath(path.dirname(runDir), path.basename(runDir)),
+      required: false,
+      exists: fs.existsSync(options.challengeContractPath ?? getChallengeContractPath(path.dirname(runDir), path.basename(runDir))),
+    });
+  }
+
+  if (options.evalReportPath) {
+    const evalReport = optional.find((artifact) => artifact.name === "eval_report");
+    if (evalReport) evalReport.required = true;
+    const evalContract = optional.find((artifact) => artifact.name === "eval_contract");
+    if (evalContract) evalContract.required = true;
+  }
+
+  if (options.challengeReportPath) {
+    const challengeReport = optional.find((artifact) => artifact.name === "challenge_report");
+    if (challengeReport) challengeReport.required = true;
+    const challengeContract = optional.find((artifact) => artifact.name === "challenge_contract");
+    if (challengeContract) challengeContract.required = true;
   }
 
   if (runState.status === "completed") {
     const delivery = optional.find((artifact) => artifact.name === "delivery");
     if (delivery) delivery.required = true;
-    const evalReport = optional.find((artifact) => artifact.name === "eval_report");
-    if (evalReport) evalReport.required = true;
   }
 
   if (["challenge", "eval", "completed", "failed"].includes(runState.phase) || !!options.challengeReportPath) {
@@ -924,10 +1044,13 @@ export function writeRunSummary(
       checkpointsPath: path.join(runDir, "checkpoints.jsonl"),
       planPath: runState.planPath,
       contractPath: path.join(runDir, "contract.json"),
+      planContractPath: getPlanContractPath(runsDir, runId),
       progressPath: path.join(runDir, "progress.md"),
       deliveryPath: path.join(runDir, "delivery.json"),
       ...(options.evalReportPath ? { evalReportPath: options.evalReportPath } : {}),
+      ...(options.evalContractPath ? { evalContractPath: options.evalContractPath } : {}),
       ...(options.challengeReportPath ? { challengeReportPath: options.challengeReportPath } : {}),
+      ...(options.challengeContractPath ? { challengeContractPath: options.challengeContractPath } : {}),
     },
     artifactCompleteness,
     dataQuality,

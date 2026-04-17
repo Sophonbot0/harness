@@ -68,6 +68,7 @@ async function main() {
   const runDir = path.join(runsDir, runId);
   assert("run-state.json exists", fs.existsSync(path.join(runDir, "run-state.json")));
   assert("dod-items.json exists", fs.existsSync(path.join(runDir, "dod-items.json")));
+  assert("plan.contract.json exists", fs.existsSync(path.join(runDir, "plan.contract.json")));
   assert("run-summary.json exists", fs.existsSync(path.join(runDir, "run-summary.json")));
 
   // --- Test 2: harness_start rejects duplicate ---
@@ -141,7 +142,7 @@ async function main() {
     summary: "All contract items complete and ready for final submit",
   });
 
-  // Create passing eval report
+  // Create passing eval + challenge reports
   const evalPath = path.join(planDir, "eval-report.md");
   fs.writeFileSync(evalPath, `# Evaluation Report
 
@@ -149,13 +150,21 @@ async function main() {
 
 All criteria verified.
 `);
+  const challengePath = path.join(planDir, "challenge-report.md");
+  fs.writeFileSync(challengePath, `# Challenge Report
+
+- CRITICAL: Login flow brute force risk — mitigated with rate limiting and lockout.
+`);
   const passResult = await submitTool.execute("test-6", {
     evalReportPath: evalPath,
+    challengeReportPath: challengePath,
   });
   const passData = (passResult as any).details;
   assert("Delivers successfully", passData?.delivered === true);
   assert("Shows PASS grade", passData?.evalGrade === "PASS");
   assert("delivery.json exists", fs.existsSync(path.join(runDir, "delivery.json")));
+  assert("eval.contract.json exists", fs.existsSync(path.join(runDir, "eval.contract.json")));
+  assert("challenge.contract.json exists", fs.existsSync(path.join(runDir, "challenge.contract.json")));
   const successSummary = state.readRunSummary(runsDir, runId);
   assert("Success summary written", successSummary?.finalOutcome === "delivered");
   assert("Success summary is native-instrumented", successSummary?.instrumentationKind === "native");
@@ -163,6 +172,9 @@ All criteria verified.
   assert("Success summary has no failure domain", successSummary?.failureDomain === "none");
   assert("Success summary keeps historical failure codes", successSummary?.historicalFailureCodes?.includes("eval_report_missing") === true);
   assert("Success summary artifacts are complete", successSummary?.artifactCompleteness?.complete === true);
+  assert("Success summary exposes plan contract path", successSummary?.artifacts?.planContractPath?.endsWith("plan.contract.json") === true);
+  assert("Success summary exposes eval contract path", successSummary?.artifacts?.evalContractPath?.endsWith("eval.contract.json") === true);
+  assert("Success summary exposes challenge contract path", successSummary?.artifacts?.challengeContractPath?.endsWith("challenge.contract.json") === true);
 
   // --- Test 7: harness_reset (no active run) ---
   console.log("\n7. harness_reset (no active run)");

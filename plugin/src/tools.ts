@@ -53,6 +53,30 @@ function classifySingleSubmitError(error: string): { code: string; domain: state
     };
   }
 
+  if (err.includes("plan contract") && err.includes("missing")) {
+    return {
+      code: "plan_contract_missing",
+      domain: "harness",
+      summary: "The structured plan contract was missing at submit time.",
+    };
+  }
+
+  if (err.includes("plan contract") && err.includes("invalid")) {
+    return {
+      code: "plan_contract_invalid",
+      domain: "harness",
+      summary: "The structured plan contract failed schema validation.",
+    };
+  }
+
+  if (err.includes("eval contract") && err.includes("invalid")) {
+    return {
+      code: "eval_contract_invalid",
+      domain: "harness",
+      summary: "The structured eval sidecar failed schema validation.",
+    };
+  }
+
   if (err.includes("cannot read challenge report")) {
     return {
       code: "challenge_report_missing",
@@ -69,7 +93,7 @@ function classifySingleSubmitError(error: string): { code: string; domain: state
     };
   }
 
-  if (err.includes("does not contain 'overall: pass'")) {
+  if (err.includes("does not contain 'overall: pass'") || err.includes("machine-checkable 'overall: pass|fail'")) {
     return {
       code: "eval_report_missing_pass_marker",
       domain: "harness",
@@ -98,6 +122,14 @@ function classifySingleSubmitError(error: string): { code: string; domain: state
       code: "contract_incomplete",
       domain: "harness",
       summary: "One or more contract items were still incomplete when submission was attempted.",
+    };
+  }
+
+  if (err.includes("challenge contract") && err.includes("invalid")) {
+    return {
+      code: "challenge_contract_invalid",
+      domain: "harness",
+      summary: "The structured challenge sidecar failed schema validation.",
     };
   }
 
@@ -332,17 +364,28 @@ export function createHarnessStartTool(runsDir: string, sessionCtx: SessionConte
 
         // Generate contract document from plan
         const contractItems = validation.extractContractItems(planContent);
-        if (contractItems.length > 0) {
-          // Apply global verifyCommand to items without their own
-          if (verifyCommand) {
-            for (const item of contractItems) {
-              if (!item.verifyCommand) {
-                item.verifyCommand = verifyCommand;
-              }
+        // Apply global verifyCommand to items without their own
+        if (verifyCommand) {
+          for (const item of contractItems) {
+            if (!item.verifyCommand) {
+              item.verifyCommand = verifyCommand;
             }
           }
-          state.writeContract(runsDir, runId, contractItems);
+        }
 
+        const planContract = validation.buildPlanContract(
+          runId,
+          taskDescription,
+          planPath,
+          dodItems.map((d) => ({ text: d.text, checked: d.checked })),
+          features,
+          contractItems,
+          verifyCommand,
+        );
+        state.writePlanContract(runsDir, runId, planContract);
+
+        state.writeContract(runsDir, runId, contractItems);
+        if (contractItems.length > 0) {
           // Write human-readable contract.md
           const contractMd = state.renderContractMarkdown(contractItems, taskDescription);
           const runDir = state.getRunDir(runsDir, runId);
@@ -1054,8 +1097,21 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
         const { runId, state: runState } = active;
         const errors: string[] = [];
         const warnings: string[] = [];
+        const evalContractPath = state.getEvalContractPath(runsDir, runId);
+        const challengeContractPath = state.getChallengeContractPath(runsDir, runId);
 
-        // 0. Auto-run verify command if set
+        // 0. Validate structured plan contract (Phase 1 fail-closed)
+        const planContract = state.readPlanContract(runsDir, runId);
+        if (!planContract) {
+          errors.push(`Plan contract missing: ${state.getPlanContractPath(runsDir, runId)}`);
+        } else {
+          const planContractErrors = validation.validatePlanContract(planContract);
+          if (planContractErrors.length > 0) {
+            errors.push(`Plan contract invalid: ${planContractErrors.join("; ")}`);
+          }
+        }
+
+        // 0b. Auto-run verify command if set
         if (runState.verifyCommand) {
           try {
             const { execSync } = await import("node:child_process");
@@ -1083,6 +1139,18 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
         if (evalContent === null) {
           errors.push(`Cannot read eval report: ${evalReportPath}`);
         } else {
+          try {
+            const evalContract = validation.buildEvalContract(runId, evalReportPath, evalContent);
+            const evalContractErrors = validation.validateEvalContract(evalContract);
+            if (evalContractErrors.length > 0) {
+              errors.push(`Eval contract invalid: ${evalContractErrors.join("; ")}`);
+            } else {
+              state.writeEvalContract(runsDir, runId, evalContract);
+            }
+          } catch (evalContractErr) {
+            errors.push(evalContractErr instanceof Error ? evalContractErr.message : String(evalContractErr));
+          }
+
           const evalCheck = validation.checkEvalReport(evalContent);
           if (!evalCheck.passed) {
             errors.push(evalCheck.reason);
@@ -1130,6 +1198,14 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
           if (challengeContent === null) {
             errors.push(`Cannot read challenge report: ${challengeReportPath}`);
           } else {
+            const challengeContract = validation.buildChallengeContract(runId, challengeReportPath, challengeContent);
+            const challengeContractErrors = validation.validateChallengeContract(challengeContract);
+            if (challengeContractErrors.length > 0) {
+              errors.push(`Challenge contract invalid: ${challengeContractErrors.join("; ")}`);
+            } else {
+              state.writeChallengeContract(runsDir, runId, challengeContract);
+            }
+
             const criticals = validation.findUnaddressedCriticals(challengeContent);
             if (criticals.length > 0) {
               errors.push(
@@ -1208,6 +1284,10 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
               failureCode: classification.failureCode,
               failureCodes: classification.failureCodes,
               summary: classification.summary,
+              evalReportPath,
+              evalContractPath: fs.existsSync(evalContractPath) ? evalContractPath : undefined,
+              challengeReportPath,
+              challengeContractPath: fs.existsSync(challengeContractPath) ? challengeContractPath : undefined,
               errors,
               warnings,
               generatorStatus: "in_progress",
@@ -1251,6 +1331,10 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
             failureCodes: classification.failureCodes,
             summary: classification.summary,
             endedAt,
+            evalReportPath,
+            evalContractPath: fs.existsSync(evalContractPath) ? evalContractPath : undefined,
+            challengeReportPath,
+            challengeContractPath: fs.existsSync(challengeContractPath) ? challengeContractPath : undefined,
             errors,
             warnings,
             evaluatorStatus: "failed",
@@ -1297,7 +1381,9 @@ export function createHarnessSubmitTool(runsDir: string, sessionCtx: SessionCont
             summary: "All quality gates passed and the run was delivered successfully.",
             endedAt: delivery.deliveredAt,
             evalReportPath,
+            evalContractPath,
             challengeReportPath,
+            challengeContractPath: challengeReportPath ? challengeContractPath : undefined,
             warnings,
             plannerStatus: "completed",
             generatorStatus: "completed",
