@@ -51,6 +51,7 @@ from validator import validate_and_report
 from scorer import score_candidate
 from frontier import update_frontier_file, load_frontier
 from promotion import evaluate_promotion, promote_candidate, generate_promotion_report
+from task_registry import load_benchmark_suite
 
 
 def ensure_dirs():
@@ -81,54 +82,106 @@ def get_next_candidate_id() -> str:
     return f"cand-{last_num + 1:04d}"
 
 
-def seed_eval(dry_run: bool = False, verbose: bool = False):
+def seed_eval(dry_run: bool = False, simulate: bool = False, verbose: bool = False):
     """Evaluate all seed harnesses on the search set."""
     print("=" * 60)
     print("  Meta-Harness: Seed Evaluation")
     print("=" * 60)
-    
+
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    run_dir = RUNS_DIR / f"seed-eval-{run_id}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
     search_set = str(CONFIG_DIR / "search-set.json")
     frontier_path = str(META_HARNESS_DIR / "frontier.json")
-    
+    suite = load_benchmark_suite(CONFIG_DIR, META_HARNESS_DIR / "fixtures")
+    if not suite["is_valid"]:
+        print("\n  ❌ Benchmark suite invalid:")
+        issues = suite["search"].get("validation_errors", []) + suite["holdout"].get("validation_errors", []) + suite["discipline"].get("issues", [])
+        for issue in issues:
+            print(f"    - {issue}")
+        (run_dir / "manifest.json").write_text(json.dumps({
+            "run_id": run_id,
+            "type": "seed_eval",
+            "started_at": datetime.now(timezone.utc).isoformat() + "Z",
+            "completed_at": datetime.now(timezone.utc).isoformat() + "Z",
+            "status": "invalid_suite",
+            "issues": issues,
+            "dry_run": dry_run,
+            "simulate": simulate,
+        }, indent=2))
+        return
+
     seeds = sorted(SEEDS_DIR.glob("seed-*"))
     print(f"\nFound {len(seeds)} seeds")
-    
+    seed_results = []
+
     for seed_dir in seeds:
         print(f"\n{'─' * 40}")
         print(f"  Evaluating: {seed_dir.name}")
         print(f"{'─' * 40}")
-        
+
         result = run_benchmark(
             str(seed_dir),
             search_set,
             str(seed_dir),
             dry_run=dry_run,
+            simulate=simulate,
             verbose=verbose,
         )
-        
+
         if result.get("scores"):
             scores = result["scores"]
             print(f"  Pass rate:  {scores.get('pass_rate', 0):.1%}")
             print(f"  Composite:  {scores.get('composite', 0):.4f}")
             print(f"  Avg rounds: {scores.get('avg_rounds', 0):.1f}")
-            
-            # Add to frontier
+
             entry = {
                 "id": seed_dir.name,
                 "type": "seed",
                 "dir": str(seed_dir),
                 "scores": scores,
             }
-            update_frontier_file(frontier_path, entry)
+            update_frontier_file(frontier_path, entry, objectives_path=CONFIG_DIR / "objectives.json")
+            seed_results.append({
+                "seed": seed_dir.name,
+                "status": result.get("status"),
+                "scores": scores,
+            })
         else:
-            print(f"  ⚠️  Invalid: {result.get('validation', {}).get('issues', [])}")
-    
-    # Show frontier
+            issues = result.get('validation', {}).get('issues', [])
+            print(f"  ⚠️  Invalid: {issues}")
+            seed_results.append({
+                "seed": seed_dir.name,
+                "status": result.get("status", "invalid"),
+                "issues": issues,
+            })
+
     frontier = load_frontier(frontier_path)
     print(f"\n{'=' * 60}")
     print(f"  Frontier: {frontier.get('frontier_size', 0)} candidates")
     print(f"  Total evaluated: {frontier.get('total_evaluated', 0)}")
     print(f"{'=' * 60}")
+
+    (run_dir / "manifest.json").write_text(json.dumps({
+        "run_id": run_id,
+        "type": "seed_eval",
+        "started_at": datetime.now(timezone.utc).isoformat() + "Z",
+        "completed_at": datetime.now(timezone.utc).isoformat() + "Z",
+        "status": "completed",
+        "dry_run": dry_run,
+        "simulate": simulate,
+        "suite_summary": {
+            "search_count": suite["search"]["task_count"],
+            "holdout_count": suite["holdout"]["task_count"],
+            "discipline": suite["discipline"],
+        },
+        "seed_results": seed_results,
+        "frontier": {
+            "frontier_size": frontier.get("frontier_size", 0),
+            "total_evaluated": frontier.get("total_evaluated", 0),
+        },
+    }, indent=2))
 
 
 def iterate(n_iterations: int, dry_run: bool = False, verbose: bool = False):
@@ -287,6 +340,8 @@ def main():
                        help="Show current Meta-Harness state")
     parser.add_argument("--dry-run", action="store_true",
                        help="Validate without executing tasks")
+    parser.add_argument("--simulate", action="store_true",
+                       help="Run deterministic simulated benchmark instead of live execution")
     parser.add_argument("--verbose", "-v", action="store_true",
                        help="Verbose output")
     
@@ -297,7 +352,7 @@ def main():
     if args.status:
         show_status()
     elif args.seed_eval:
-        seed_eval(dry_run=args.dry_run, verbose=args.verbose)
+        seed_eval(dry_run=args.dry_run, simulate=args.simulate, verbose=args.verbose)
     elif args.iterate:
         iterate(args.iterate, dry_run=args.dry_run, verbose=args.verbose)
     elif args.promote:

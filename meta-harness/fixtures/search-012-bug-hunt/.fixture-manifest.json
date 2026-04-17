@@ -1,0 +1,17 @@
+{
+  "task_id": "search-012",
+  "category": "bug_fix",
+  "difficulty": "hard",
+  "failure_modes": [
+    "correctness",
+    "regression",
+    "edge_case"
+  ],
+  "expected_artifacts": [
+    "plan.md",
+    "challenge-report.md",
+    "eval-report.md",
+    "scores.json"
+  ],
+  "generated_by": "materialize_fixture_scaffolds.py"
+}

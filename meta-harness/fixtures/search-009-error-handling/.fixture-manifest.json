@@ -1,0 +1,17 @@
+{
+  "task_id": "search-009",
+  "category": "refactor",
+  "difficulty": "medium",
+  "failure_modes": [
+    "regression",
+    "backwards_compatibility",
+    "untested_path"
+  ],
+  "expected_artifacts": [
+    "plan.md",
+    "challenge-report.md",
+    "eval-report.md",
+    "scores.json"
+  ],
+  "generated_by": "materialize_fixture_scaffolds.py"
+}

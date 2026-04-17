@@ -1,100 +1,105 @@
 #!/usr/bin/env python3
 """
 Frontier — Pareto frontier tracking for Meta-Harness candidates.
-
-Maintains a population of evaluated harnesses and identifies the
-Pareto-optimal set across multiple objectives.
-
-Paper: "Meta-Harness maintains a population H and a Pareto frontier
-over evaluated harnesses."
 """
+
+from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
+from typing import Any
 
 
-def is_dominated(a: dict, b: dict, dimensions: list) -> bool:
-    """Return True if candidate b Pareto-dominates candidate a.
-    
-    b dominates a iff b is >= a on all dimensions and > a on at least one.
-    For 'minimize' objectives, we negate values before comparison.
-    """
-    direction_map = {
-        "pass_rate": "maximize",
-        "eval_grade": "maximize",
-        "avg_rounds": "minimize",
-        "avg_time_seconds": "minimize",
-        "stuck_rate": "minimize",
-        "token_cost": "minimize",
-        "composite": "maximize",
-    }
-    
+DEFAULT_DIRECTIONS = {
+    "pass_rate": "maximize",
+    "eval_grade": "maximize",
+    "dod_coverage": "maximize",
+    "artifact_validity_rate": "maximize",
+    "avg_rounds": "minimize",
+    "avg_time_seconds": "minimize",
+    "stuck_rate": "minimize",
+    "token_cost": "minimize",
+    "regression_rate": "minimize",
+    "composite": "maximize",
+}
+
+
+def load_objective_directions(objectives_path: str | Path | None = None) -> dict[str, str]:
+    directions = dict(DEFAULT_DIRECTIONS)
+    if objectives_path and Path(objectives_path).is_file():
+        payload = json.loads(Path(objectives_path).read_text())
+        for objective in payload.get("objectives", []):
+            directions[objective["id"]] = objective.get("direction", directions.get(objective["id"], "maximize"))
+    return directions
+
+
+def is_dominated(a: dict[str, Any], b: dict[str, Any], dimensions: list[str], directions: dict[str, str] | None = None) -> bool:
+    directions = directions or DEFAULT_DIRECTIONS
     at_least_one_better = False
     for dim in dimensions:
-        direction = direction_map.get(dim, "maximize")
-        av = a.get(dim, 0)
-        bv = b.get(dim, 0)
-        
+        direction = directions.get(dim, "maximize")
+        av = float(a.get(dim, 0) or 0)
+        bv = float(b.get(dim, 0) or 0)
         if direction == "minimize":
             av, bv = -av, -bv
-        
         if bv < av:
-            return False  # b is worse on this dimension
+            return False
         if bv > av:
             at_least_one_better = True
-    
     return at_least_one_better
 
 
-def compute_frontier(candidates: List[dict], dimensions: list = None) -> List[dict]:
-    """Compute the Pareto frontier from a list of scored candidates.
-    
-    Each candidate dict must have a 'scores' key with the metric values.
-    
-    Returns the list of non-dominated candidates.
-    """
+def compute_frontier(candidates: list[dict[str, Any]], dimensions: list[str] | None = None, directions: dict[str, str] | None = None) -> list[dict[str, Any]]:
     if dimensions is None:
         dimensions = ["pass_rate", "avg_time_seconds", "token_cost"]
-    
-    frontier = []
-    for i, c in enumerate(candidates):
-        scores_c = c.get("scores", c)
+    frontier: list[dict[str, Any]] = []
+    for i, candidate in enumerate(candidates):
+        scores_c = candidate.get("scores", candidate)
         dominated = False
         for j, other in enumerate(candidates):
             if i == j:
                 continue
             scores_o = other.get("scores", other)
-            if is_dominated(scores_c, scores_o, dimensions):
+            if is_dominated(scores_c, scores_o, dimensions, directions):
                 dominated = True
                 break
         if not dominated:
-            frontier.append(c)
-    
+            frontier.append(candidate)
     return frontier
 
 
-def update_frontier_file(frontier_path: str, new_candidate: dict, dimensions: list = None):
-    """Add a new candidate to the frontier file and recompute."""
+def update_frontier_file(
+    frontier_path: str,
+    new_candidate: dict[str, Any],
+    dimensions: list[str] | None = None,
+    objectives_path: str | Path | None = None,
+):
     existing = []
-    if os.path.isfile(frontier_path):
+    frontier_file = Path(frontier_path)
+    if frontier_file.is_file():
         try:
-            data = json.loads(Path(frontier_path).read_text())
-            if isinstance(data, dict):
-                existing = data.get("all_candidates_full", [])
-            elif isinstance(data, list):
-                existing = data
+            data = json.loads(frontier_file.read_text())
+            existing = data.get("all_candidates_full", []) if isinstance(data, dict) else list(data)
         except json.JSONDecodeError:
             existing = []
-    
-    all_candidates = existing + [new_candidate]
-    frontier = compute_frontier(all_candidates, dimensions)
-    
+
+    deduped: dict[str, dict[str, Any]] = {}
+    for candidate in existing:
+        deduped[str(candidate.get("id", "unknown"))] = candidate
+    deduped[str(new_candidate.get("id", "unknown"))] = new_candidate
+
+    all_candidates = sorted(deduped.values(), key=lambda c: str(c.get("id", "")))
+    directions = load_objective_directions(objectives_path)
+    frontier = compute_frontier(all_candidates, dimensions, directions)
+
     result = {
-        "updated_at": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+        "updated_at": datetime.now(timezone.utc).isoformat() + "Z",
         "total_evaluated": len(all_candidates),
         "frontier_size": len(frontier),
+        "dimensions": dimensions or ["pass_rate", "avg_time_seconds", "token_cost"],
+        "directions": directions,
         "frontier": frontier,
         "all_candidates_full": all_candidates,
         "all_candidates": [
@@ -102,18 +107,19 @@ def update_frontier_file(frontier_path: str, new_candidate: dict, dimensions: li
                 "id": c.get("id", "unknown"),
                 "composite": c.get("scores", c).get("composite", 0),
                 "pass_rate": c.get("scores", c).get("pass_rate", 0),
-                "on_frontier": c in frontier,
+                "dod_coverage": c.get("scores", c).get("dod_coverage", 0),
+                "artifact_validity_rate": c.get("scores", c).get("artifact_validity_rate", 0),
+                "on_frontier": any(f.get("id") == c.get("id") for f in frontier),
             }
             for c in all_candidates
-        ]
+        ],
     }
-    
-    Path(frontier_path).write_text(json.dumps(result, indent=2))
+    frontier_file.write_text(json.dumps(result, indent=2))
     return result
 
 
-def load_frontier(frontier_path: str) -> dict:
-    """Load the current frontier state."""
-    if not os.path.isfile(frontier_path):
+def load_frontier(frontier_path: str) -> dict[str, Any]:
+    path = Path(frontier_path)
+    if not path.is_file():
         return {"frontier": [], "total_evaluated": 0, "frontier_size": 0}
-    return json.loads(Path(frontier_path).read_text())
+    return json.loads(path.read_text())

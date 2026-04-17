@@ -1,0 +1,17 @@
+{
+  "task_id": "search-007",
+  "category": "feature",
+  "difficulty": "hard",
+  "failure_modes": [
+    "scope_miss",
+    "integration",
+    "artifact_gap"
+  ],
+  "expected_artifacts": [
+    "plan.md",
+    "challenge-report.md",
+    "eval-report.md",
+    "scores.json"
+  ],
+  "generated_by": "materialize_fixture_scaffolds.py"
+}

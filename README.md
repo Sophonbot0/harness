@@ -41,7 +41,31 @@ harness/
 
 1. **Plugin** (`plugin/`) registers 9 tools: `harness_start`, `harness_checkpoint`, `harness_challenge`, `harness_submit`, `harness_status`, `harness_reset`, `harness_resume`, `harness_plan`, `harness_modify`
 2. **Skill** (`skill/`) tells the agent *how* to use those tools: PLAN → BUILD → CHALLENGE → EVAL workflow
-3. **Meta-harness** (`meta-harness/`) evolves the skill prompts by benchmarking variants against a test suite
+3. **Meta-harness** (`meta-harness/`) evolves the skill prompts by benchmarking variants against a search set / holdout set benchmark suite
+
+## Benchmark suite (Phase 2)
+
+The benchmark suite is now a first-class surface:
+
+- **Search set:** `meta-harness/config/search-set.json` — proposer-visible tasks
+- **Holdout set:** `meta-harness/config/holdout-set.json` — promotion-only tasks
+- **Task registry:** `meta-harness/runner/task_registry.py` merges task-set metadata with fixture metadata and enforces search/holdout disjointness
+- **Replayable fixtures:** `meta-harness/fixtures/*` contain deterministic scaffolds; thin fixtures are materialized reproducibly
+- **Runner modes:**
+  - `--dry-run` → validate candidate + task suite only
+  - `--simulate` → deterministic offline benchmark for regression testing
+  - live mode → emits spawn instructions / captures traces
+- **Canonical metrics:** pass rate, DoD coverage, artifact validity rate, avg rounds, avg time, stuck rate, regression rate
+- **Fixture verification:** `meta-harness/runner/verify_benchmark_fixtures.py` proves every task scaffold can be materialized and baseline-verified in isolation
+
+Quick checks:
+
+```bash
+python3 meta-harness/runner/task_registry.py meta-harness/config meta-harness/fixtures
+python3 meta-harness/runner/verify_benchmark_fixtures.py
+python3 -m unittest discover meta-harness/tests -v
+python3 meta-harness/run_meta_harness.py --seed-eval --simulate
+```
 
 ## Pipeline
 

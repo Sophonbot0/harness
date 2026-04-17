@@ -1,0 +1,17 @@
+{
+  "task_id": "search-008",
+  "category": "ambiguous",
+  "difficulty": "medium",
+  "failure_modes": [
+    "assumption_quality",
+    "scope_definition",
+    "overbuild"
+  ],
+  "expected_artifacts": [
+    "plan.md",
+    "challenge-report.md",
+    "eval-report.md",
+    "scores.json"
+  ],
+  "generated_by": "materialize_fixture_scaffolds.py"
+}

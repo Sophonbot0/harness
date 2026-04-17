@@ -77,10 +77,32 @@ The proposer CANNOT modify:
 ## Benchmark Tasks
 
 ### Search Set (12 tasks)
-Categories: bug fix, feature implementation, refactor, multi-file change, ambiguous request, sprint-sized project
+Categories: bug fix, feature implementation, refactor, ambiguous request, sprint-sized project
 
 ### Holdout Set (8 tasks)
 Disjoint from search set. Used only for promotion decisions.
+
+### Phase 2 hardening
+The benchmark suite is now operationally strict rather than conceptual:
+
+- `runner/task_registry.py` is the canonical loader/validator for task sets
+- every task is merged with fixture-local `task.json` metadata
+- every fixture receives a deterministic hash for replayability
+- search/holdout disjointness is validated explicitly
+- thin fixtures are materialized into deterministic scaffold files
+- `benchmark_runner.py` supports `dry_run`, `simulate`, and live orchestration modes
+- aggregate benchmark output now includes category/difficulty breakdowns, DoD coverage, artifact validity, regression rate, and leaderboard rows
+- `runner/verify_benchmark_fixtures.py` proves every scaffold can be materialized and pass its baseline verifier in isolation
+- `meta-harness/tests/test_phase2.py` validates the suite end-to-end offline
+
+Useful commands:
+
+```bash
+python3 runner/task_registry.py config fixtures
+python3 runner/verify_benchmark_fixtures.py
+python3 -m unittest discover tests -v
+python3 run_meta_harness.py --seed-eval --simulate
+```
 
 ## Promotion Rules
 

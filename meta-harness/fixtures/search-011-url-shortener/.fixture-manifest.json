@@ -1,0 +1,17 @@
+{
+  "task_id": "search-011",
+  "category": "project",
+  "difficulty": "hard",
+  "failure_modes": [
+    "planning",
+    "multi_file_coordination",
+    "partial_completion"
+  ],
+  "expected_artifacts": [
+    "plan.md",
+    "challenge-report.md",
+    "eval-report.md",
+    "scores.json"
+  ],
+  "generated_by": "materialize_fixture_scaffolds.py"
+}

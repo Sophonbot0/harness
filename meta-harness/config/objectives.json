@@ -7,7 +7,7 @@
       "direction": "maximize",
       "range": [0.0, 1.0],
       "primary": true,
-      "weight": 0.4
+      "weight": 0.35
     },
     {
       "id": "eval_grade",
@@ -16,7 +16,7 @@
       "direction": "maximize",
       "range": [0.0, 1.0],
       "primary": true,
-      "weight": 0.3
+      "weight": 0.25
     },
     {
       "id": "avg_rounds",
@@ -34,7 +34,7 @@
       "direction": "minimize",
       "range": [60, 3600],
       "primary": false,
-      "weight": 0.1
+      "weight": 0.05
     },
     {
       "id": "stuck_rate",
@@ -43,7 +43,25 @@
       "direction": "minimize",
       "range": [0.0, 1.0],
       "primary": false,
-      "weight": 0.1
+      "weight": 0.08
+    },
+    {
+      "id": "dod_coverage",
+      "name": "Definition-of-Done Coverage",
+      "description": "Fraction of benchmark DoD items passed across the whole task set",
+      "direction": "maximize",
+      "range": [0.0, 1.0],
+      "primary": false,
+      "weight": 0.07
+    },
+    {
+      "id": "artifact_validity_rate",
+      "name": "Artifact Validity Rate",
+      "description": "Fraction of required artifacts produced and structurally present",
+      "direction": "maximize",
+      "range": [0.0, 1.0],
+      "primary": false,
+      "weight": 0.05
     },
     {
       "id": "token_cost",
@@ -61,9 +79,9 @@
       "direction": "minimize",
       "range": [0.0, 1.0],
       "primary": false,
-      "weight": 0.0
+      "weight": 0.05
     }
   ],
-  "pareto_dimensions": ["pass_rate", "avg_time_seconds", "token_cost"],
-  "composite_score": "0.4 * pass_rate + 0.3 * eval_grade + 0.1 * (1 - norm(avg_rounds)) + 0.1 * (1 - norm(avg_time_seconds)) + 0.1 * (1 - stuck_rate)"
+  "pareto_dimensions": ["pass_rate", "avg_time_seconds", "token_cost", "dod_coverage"],
+  "composite_score": "0.35 * pass_rate + 0.25 * eval_grade + 0.1 * (1 - norm(avg_rounds)) + 0.05 * (1 - norm(avg_time_seconds)) + 0.08 * (1 - stuck_rate) + 0.07 * dod_coverage + 0.05 * artifact_validity_rate + 0.05 * (1 - regression_rate)"
 }
