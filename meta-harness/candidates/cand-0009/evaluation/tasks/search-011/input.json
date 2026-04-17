@@ -1,0 +1,11 @@
+{
+  "id": "search-011",
+  "name": "Sprint-Sized Project",
+  "category": "project",
+  "difficulty": "hard",
+  "description": "Build a URL shortener service: URL creation API, redirect handler, click analytics tracking, rate limiting, admin dashboard (list all URLs, see click counts), and database persistence. Must have tests.",
+  "scaffold": "fixtures/search-011-url-shortener/",
+  "expected_dod_count": 25,
+  "expected_features": 8,
+  "notes": "Tests sprint detection and multi-sprint execution."
+}

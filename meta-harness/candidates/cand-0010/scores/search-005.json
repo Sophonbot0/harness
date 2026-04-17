@@ -1,0 +1,13 @@
+{
+  "task_id": "search-005",
+  "status": "completed",
+  "pass": true,
+  "eval_grade": "A+",
+  "rounds": 1,
+  "dod_total": 21,
+  "dod_passed": 21,
+  "tests_passed": 22,
+  "tests_total": 22,
+  "elapsed_seconds": 480,
+  "notes": "trend-oracle benchmark run, improved from baseline A+ r1"
+}

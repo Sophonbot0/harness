@@ -1,50 +1,23 @@
 {
-  "last_iteration": "2026-04-12T15:18:37Z",
-  "iteration_number": 4,
-  "next_cand_id": 9,
+  "last_iteration": "2026-04-17T03:34:00Z",
+  "iteration_number": 5,
+  "next_cand_id": 11,
   "running": false,
   "baseline": {
-    "id": "cand-0008",
-    "name": "deep-planner",
-    "composite": 0.975,
-    "total_dod": 237,
-    "promoted_at": "2026-04-12T15:18:37Z"
+    "id": "cand-0009",
+    "name": "adaptive-sentinel",
+    "composite": 0.9925,
+    "total_dod": 269,
+    "promoted_at": "2026-04-17T03:34:00Z"
   },
   "consecutive_no_improvement": 0,
   "schedule": "2x/day",
   "current_candidates": [],
   "history": [
-    {
-      "iteration": 1,
-      "date": "2026-04-10",
-      "candidates": ["cand-0001", "cand-0002"],
-      "winner": "cand-0001",
-      "promoted": true,
-      "composite": 0.945
-    },
-    {
-      "iteration": 2,
-      "date": "2026-04-10",
-      "candidates": ["cand-0003", "cand-0004"],
-      "winner": null,
-      "promoted": false,
-      "reason": "Neither candidate beat cand-0001 (0.945)"
-    },
-    {
-      "iteration": 3,
-      "date": "2026-04-11",
-      "candidates": ["cand-0005", "cand-0006"],
-      "winner": "cand-0006",
-      "promoted": true,
-      "composite": 0.959
-    },
-    {
-      "iteration": 4,
-      "date": "2026-04-12",
-      "candidates": ["cand-0007", "cand-0008"],
-      "winner": "cand-0008",
-      "promoted": true,
-      "composite": 0.975
-    }
+    {"iteration":1,"date":"2026-04-10","candidates":["cand-0001","cand-0002"],"winner":"cand-0001","promoted":true,"composite":0.945},
+    {"iteration":2,"date":"2026-04-10","candidates":["cand-0003","cand-0004"],"winner":null,"promoted":false,"reason":"Neither candidate beat cand-0001 (0.945)"},
+    {"iteration":3,"date":"2026-04-11","candidates":["cand-0005","cand-0006"],"winner":"cand-0006","promoted":true,"composite":0.959},
+    {"iteration":4,"date":"2026-04-12","candidates":["cand-0007","cand-0008"],"winner":"cand-0008","promoted":true,"composite":0.975},
+    {"iteration":5,"date":"2026-04-17","candidates":["cand-0009","cand-0010"],"winner":"cand-0009","promoted":true,"composite":0.9925}
   ]
 }

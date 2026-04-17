@@ -1,0 +1,10 @@
+{
+  "task_id": "search-002",
+  "status": "dry_run",
+  "pass": false,
+  "eval_grade": "N/A",
+  "rounds": 0,
+  "elapsed_seconds": 0.1,
+  "total_tokens": 0,
+  "dry_run": true
+}

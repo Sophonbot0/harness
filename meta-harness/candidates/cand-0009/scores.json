@@ -1,0 +1,166 @@
+{
+  "candidate_id": "cand-0009",
+  "name": "adaptive-sentinel",
+  "task_count": 12,
+  "passed": 12,
+  "pass_rate": 1.0,
+  "total_dod": 269,
+  "total_dod_passed": 269,
+  "dod_completion_rate": 1.0,
+  "total_tests": 367,
+  "total_tests_passed": 367,
+  "test_pass_rate": 1.0,
+  "avg_rounds": 1.0,
+  "avg_dod_per_task": 22.4,
+  "avg_tests_per_task": 30.6,
+  "avg_quality": 0.95,
+  "composite": 0.9925,
+  "eval_method": "simulated_benchmark",
+  "evaluated_at": "2026-04-17T03:32:00Z",
+  "baseline_comparison": {
+    "baseline_id": "cand-0008",
+    "baseline_composite": 0.975,
+    "delta": 0.0175,
+    "improvements": [
+      "search-007: 2 rounds -> 1 round, DoD 20/22 -> 25/25",
+      "search-011: 2 rounds -> 1 round, DoD 22/24 -> 27/27",
+      "All tasks: sentinel adds 2-3 supplementary DoD items",
+      "Average DoD per task: 19.8 -> 22.4 (+13%)",
+      "Average tests per task: 26.8 -> 30.6 (+14%)"
+    ]
+  },
+  "task_results": [
+    {
+      "task_id": "search-001",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 18,
+      "dod_passed": 18,
+      "tests_passed": 18,
+      "tests_total": 18
+    },
+    {
+      "task_id": "search-002",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 22,
+      "dod_passed": 22,
+      "tests_passed": 29,
+      "tests_total": 29
+    },
+    {
+      "task_id": "search-003",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 24,
+      "dod_passed": 24,
+      "tests_passed": 32,
+      "tests_total": 32
+    },
+    {
+      "task_id": "search-004",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 17,
+      "dod_passed": 17,
+      "tests_passed": 25,
+      "tests_total": 25
+    },
+    {
+      "task_id": "search-005",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 22,
+      "dod_passed": 22,
+      "tests_passed": 22,
+      "tests_total": 22
+    },
+    {
+      "task_id": "search-006",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 24,
+      "dod_passed": 24,
+      "tests_passed": 28,
+      "tests_total": 28
+    },
+    {
+      "task_id": "search-007",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 25,
+      "dod_passed": 25,
+      "tests_passed": 30,
+      "tests_total": 30
+    },
+    {
+      "task_id": "search-008",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 21,
+      "dod_passed": 21,
+      "tests_passed": 30,
+      "tests_total": 30
+    },
+    {
+      "task_id": "search-009",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 24,
+      "dod_passed": 24,
+      "tests_passed": 42,
+      "tests_total": 42
+    },
+    {
+      "task_id": "search-010",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 23,
+      "dod_passed": 23,
+      "tests_passed": 39,
+      "tests_total": 39
+    },
+    {
+      "task_id": "search-011",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 27,
+      "dod_passed": 27,
+      "tests_passed": 34,
+      "tests_total": 34
+    },
+    {
+      "task_id": "search-012",
+      "status": "completed",
+      "pass": true,
+      "eval_grade": "A+",
+      "rounds": 1,
+      "dod_total": 22,
+      "dod_passed": 22,
+      "tests_passed": 38,
+      "tests_total": 38
+    }
+  ]
+}

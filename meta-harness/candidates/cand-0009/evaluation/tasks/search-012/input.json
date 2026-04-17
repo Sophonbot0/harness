@@ -1,0 +1,10 @@
+{
+  "id": "search-012",
+  "name": "Existing Codebase Bug Hunt",
+  "category": "bug_fix",
+  "difficulty": "hard",
+  "description": "The test suite has 3 failing tests. Fix all 3 bugs without breaking anything else. The bugs are in different modules and have different root causes (off-by-one, race condition, type coercion).",
+  "scaffold": "fixtures/search-012-bug-hunt/",
+  "expected_dod_count": 6,
+  "expected_features": 3
+}

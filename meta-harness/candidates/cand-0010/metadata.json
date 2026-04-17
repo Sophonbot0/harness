@@ -1,0 +1,23 @@
+{
+  "id": "cand-0010",
+  "name": "trend-oracle",
+  "parent": "cand-0008",
+  "iteration": 5,
+  "created": "2026-04-17T03:29:00Z",
+  "hypothesis": "cand-0008 scored 0.975 but search-007 (notifications) and search-011 (url-shortener) needed 2 rounds and had DoD gaps (20/22 and 22/24). Analysis: both are multi-component hard tasks where the adversary found issues the planner didn't anticipate. By adding (1) trend-aware planning that front-loads historically-common failure patterns and (2) a structured adversary taxonomy ensuring systematic coverage across 4 failure categories, we should eliminate round-2 regressions on hard tasks and push those from A to A+.",
+  "changes": {
+    "planner": "Added trend analysis step: 5 historically-common failure patterns (concurrency, boundaries, type-safety, error-propagation, integration-seams). Each feature must document which patterns it covers via Trend Coverage and a Trend Risk Matrix.",
+    "generator": "Same as cand-0008 with added instruction to implement defensively based on trend risks in the plan.",
+    "adversary": "Restructured from ad-hoc probing to structured 4-category taxonomy (data-integrity, concurrency, boundary, error-propagation). Must provide ≥1 challenge per applicable category. Timeout increased 12→15 min for deeper structured analysis.",
+    "evaluator": "Same as cand-0008 with added per-criterion confidence tracking (HIGH/MEDIUM/LOW). A+ requires avg confidence ≥0.9.",
+    "skill": "Same workflow and timeouts except adversary 12→15 min."
+  },
+  "expected_metrics": {
+    "pass_rate": 1.0,
+    "avg_dod_per_task": "19-22",
+    "avg_tests_per_task": "25-30",
+    "eval_grade": 1.0,
+    "composite_target": ">=0.980",
+    "token_cost_vs_parent": "~110%"
+  }
+}

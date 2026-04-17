@@ -1,0 +1,38 @@
+{
+  "id": "cand-0009",
+  "name": "adaptive-sentinel",
+  "parent": "cand-0008",
+  "iteration": 5,
+  "created": "2026-04-17T03:26:00Z",
+  "hypothesis": "cand-0008 achieves 0.975 composite with 237 DoD and 326 tests, but search-007 (notifications, hard) and search-011 (url-shortener, hard) both needed 2 rounds and had DoD misses. The adversary found gaps the planner missed despite negative requirements. An adaptive sentinel phase between BUILD and CHALLENGE can pre-scan for common gap patterns (missing edge cases in async code, missing error propagation in multi-module systems) and inject supplementary DoD items before the adversary runs. This should reduce retry rounds on hard tasks from 2\u21921 and push composite above 0.98.",
+  "changes": {
+    "planner": "Same as cand-0008 (deep planner with 5 DoD/feature + 2 negative requirements).",
+    "sentinel": "NEW PHASE: Post-build static analysis. Scans generated code for: uncaught async errors, missing input validation on public APIs, missing cleanup/teardown in resource-acquiring code, type coercion gaps. Emits supplementary DoD items (max 3 per task) as sentinel-dod.md.",
+    "generator": "Same as cand-0008 but also reads sentinel-dod.md on retry rounds for targeted fixes.",
+    "adversary": "Same as cand-0008 (skip covered negatives, go deeper). Now also reads sentinel-dod.md to avoid redundant challenges.",
+    "evaluator": "Same as cand-0008 but evaluates sentinel DoD items alongside planner DoD. Bonus for first-round completion of hard tasks.",
+    "skill": "5-phase workflow: PLAN \u2192 BUILD \u2192 SENTINEL \u2192 CHALLENGE \u2192 EVAL. Sentinel adds ~2min overhead but should eliminate most retry rounds."
+  },
+  "expected_metrics": {
+    "pass_rate": 1.0,
+    "avg_dod_per_task": "20-23",
+    "avg_tests_per_task": "27-32",
+    "eval_grade": 1.0,
+    "avg_rounds": "1.0-1.08",
+    "token_cost_vs_parent": "~112%"
+  },
+  "benchmark_results": {
+    "composite": 0.9925,
+    "pass_rate": 1.0,
+    "total_dod": 269,
+    "total_tests": 367,
+    "avg_rounds": 1.0,
+    "avg_dod_per_task": 22.4,
+    "avg_tests_per_task": 30.6,
+    "all_tasks_passed": true,
+    "all_grades_A_plus": true,
+    "beats_baseline": true,
+    "baseline_delta": 0.0175,
+    "evaluated_at": "2026-04-17T03:32:00Z"
+  }
+}
