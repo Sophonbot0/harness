@@ -158,6 +158,7 @@ All criteria verified.
   assert("delivery.json exists", fs.existsSync(path.join(runDir, "delivery.json")));
   const successSummary = state.readRunSummary(runsDir, runId);
   assert("Success summary written", successSummary?.finalOutcome === "delivered");
+  assert("Success summary is native-instrumented", successSummary?.instrumentationKind === "native");
   assert("Success summary has no failure domain", successSummary?.failureDomain === "none");
   assert("Success summary keeps historical failure codes", successSummary?.historicalFailureCodes?.includes("eval_report_missing") === true);
   assert("Success summary artifacts are complete", successSummary?.artifactCompleteness?.complete === true);
@@ -233,6 +234,40 @@ All criteria verified.
   // --- Test 11b: baseline aggregation script ---
   console.log("\n11b. baseline aggregation script");
   {
+    const legacyPlanPath = path.join(planDir, "legacy-plan.md");
+    fs.writeFileSync(legacyPlanPath, "# Legacy Plan\n\n- [x] Legacy item\n");
+
+    const legacyRunId = "legacy-delivered-run";
+    const legacyRunDir = path.join(runsDir, legacyRunId);
+    fs.mkdirSync(legacyRunDir, { recursive: true });
+    fs.writeFileSync(path.join(legacyRunDir, "run-state.json"), JSON.stringify({
+      runId: legacyRunId,
+      planPath: legacyPlanPath,
+      taskDescription: "Legacy delivered run",
+      startedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      phase: "eval",
+      round: 1,
+      checkpoints: [],
+      status: "delivered",
+    }, null, 2));
+    fs.writeFileSync(path.join(legacyRunDir, "dod-items.json"), JSON.stringify([{ text: "Legacy item", checked: true }], null, 2));
+
+    const staleRunId = "stale-active-run";
+    const staleRunDir = path.join(runsDir, staleRunId);
+    fs.mkdirSync(staleRunDir, { recursive: true });
+    fs.writeFileSync(path.join(staleRunDir, "run-state.json"), JSON.stringify({
+      runId: staleRunId,
+      planPath,
+      taskDescription: "Stale active run",
+      startedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+      phase: "build",
+      round: 1,
+      checkpoints: [],
+      status: "active",
+      isSubagent: false,
+    }, null, 2));
+    fs.writeFileSync(path.join(staleRunDir, "contract.json"), JSON.stringify([], null, 2));
+
     const raw = execFileSync(process.execPath, [
       path.join(process.cwd(), "scripts", "aggregate-run-summaries.mjs"),
       "--runsDir",
@@ -240,11 +275,17 @@ All criteria verified.
       "--json",
     ], { encoding: "utf8" });
     const report = JSON.parse(raw);
-    assert("Aggregation includes total runs", typeof report.totalRuns === "number" && report.totalRuns >= 2);
+    assert("Aggregation includes total runs", typeof report.totalRuns === "number" && report.totalRuns >= 4);
     assert("Aggregation counts delivered runs", report.deliveredRuns >= 1);
     assert("Aggregation counts eval_report_missing", report.failureCodeCounts?.eval_report_missing >= 1);
     assert("Aggregation exposes env vs harness split", typeof report.environmentVsHarnessSplit?.environment === "number");
     assert("Aggregation exposes false-pass suspects", Array.isArray(report.falsePassSuspects));
+    assert("Aggregation tracks native vs backfilled", report.instrumentationCounts?.backfilled >= 2);
+    assert("Aggregation tracks stale active runs", report.staleActive?.count >= 1);
+    assert("Aggregation tracks legacy normalization", report.legacyDataQuality?.normalizedStatuses?.delivered_to_completed >= 1);
+    assert("Aggregation reports artifact debt", typeof report.artifactDebt?.required?.contract === "number");
+    assert("Backfill writes legacy run-summary", fs.existsSync(path.join(legacyRunDir, "run-summary.json")));
+    assert("Backfill writes stale run-summary", fs.existsSync(path.join(staleRunDir, "run-summary.json")));
   }
 
   // ─── Progress Bar Tests ───

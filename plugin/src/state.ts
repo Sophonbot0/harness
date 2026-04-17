@@ -11,6 +11,8 @@ export interface RunState {
   round: number;
   checkpoints: string[];
   status: "active" | "completed" | "failed" | "cancelled";
+  sourceStatus?: string;         // Raw legacy status before normalization (e.g. "delivered")
+  normalizedFromLegacy?: boolean;
   sessionKey?: string;  // Session that owns this run — enables concurrent runs
   telegramChatId?: string;
   telegramThreadId?: string;
@@ -101,7 +103,10 @@ export interface RunSummary {
   startedAt: string;
   updatedAt: string;
   endedAt?: string;
+  instrumentationKind: "native" | "backfilled";
   runStatus: RunState["status"];
+  sourceRunStatus?: string;
+  legacyNormalized?: boolean;
   phase: string;
   round: number;
   plannerStatus: PhaseExecutionStatus;
@@ -113,6 +118,9 @@ export interface RunSummary {
   failureCode?: string;
   failureCodes?: string[];
   historicalFailureCodes?: string[];
+  staleActive?: boolean;
+  staleMinutes?: number;
+  staleThresholdMinutes?: number;
   summary: string;
   metrics: {
     elapsedSeconds: number;
@@ -166,6 +174,7 @@ export interface RunSummaryOptions {
   generatorStatus?: PhaseExecutionStatus;
   adversaryStatus?: PhaseExecutionStatus;
   evaluatorStatus?: PhaseExecutionStatus;
+  instrumentationKind?: "native" | "backfilled";
 }
 
 /** A plan within a multi-phase manifest */
@@ -314,11 +323,43 @@ export function writeRunState(runsDir: string, runId: string, state: RunState): 
   safeWriteFile(path.join(dir, "run-state.json"), JSON.stringify(state, null, 2));
 }
 
+function normalizeRunStatus(rawStatus: unknown): { status: RunState["status"]; sourceStatus?: string; normalizedFromLegacy: boolean } {
+  if (rawStatus === "active" || rawStatus === "completed" || rawStatus === "failed" || rawStatus === "cancelled") {
+    return { status: rawStatus, normalizedFromLegacy: false };
+  }
+  if (rawStatus === "delivered") {
+    return {
+      status: "completed",
+      sourceStatus: "delivered",
+      normalizedFromLegacy: true,
+    };
+  }
+  if (typeof rawStatus === "string") {
+    return {
+      status: "failed",
+      sourceStatus: rawStatus,
+      normalizedFromLegacy: true,
+    };
+  }
+  return { status: "failed", normalizedFromLegacy: true };
+}
+
+function normalizeRunState(raw: RunState): RunState {
+  const normalized = normalizeRunStatus((raw as unknown as Record<string, unknown>).status);
+  return {
+    ...raw,
+    status: normalized.status,
+    ...(normalized.sourceStatus ? { sourceStatus: normalized.sourceStatus } : {}),
+    ...(normalized.normalizedFromLegacy ? { normalizedFromLegacy: true } : {}),
+  };
+}
+
 export function readRunState(runsDir: string, runId: string): RunState | null {
   const p = path.join(getRunDir(runsDir, runId), "run-state.json");
   if (!fs.existsSync(p)) return null;
   const content = fs.readFileSync(p, "utf-8");
-  return safeParseJson<RunState>(content, p);
+  const raw = safeParseJson<RunState>(content, p);
+  return normalizeRunState(raw);
 }
 
 export function writeDodItems(runsDir: string, runId: string, items: DodItem[]): void {
@@ -609,6 +650,20 @@ function readDelivery(runsDir: string, runId: string): Delivery | null {
   return safeParseJson<Delivery>(content, dp);
 }
 
+function deriveStaleActiveState(
+  runState: RunState,
+  checkpoints: Checkpoint[],
+): { staleActive: boolean; staleMinutes: number; staleThresholdMinutes: number } {
+  const staleThresholdMinutes = runState.isSubagent ? 30 : 120;
+  const latestActivity = checkpoints.length > 0
+    ? checkpoints[checkpoints.length - 1].timestamp
+    : runState.lastCheckpointAt ?? runState.startedAt;
+  const elapsedMs = Date.now() - new Date(latestActivity).getTime();
+  const staleMinutes = Math.max(0, Math.round(elapsedMs / 60000));
+  const staleActive = runState.status === "active" && staleMinutes > staleThresholdMinutes;
+  return { staleActive, staleMinutes, staleThresholdMinutes };
+}
+
 function deriveArtifactCompleteness(
   runDir: string,
   runState: RunState,
@@ -765,6 +820,7 @@ export function writeRunSummary(
   const contractItems = readContract(runsDir, runId);
   const delivery = readDelivery(runsDir, runId);
   const previousSummary = readRunSummary(runsDir, runId);
+  const staleState = deriveStaleActiveState(runState, checkpoints);
   const nowIso = new Date().toISOString();
   const updatedAt = options.endedAt
     ?? delivery?.deliveredAt
@@ -781,7 +837,9 @@ export function writeRunSummary(
         ? "cancelled"
         : runState.status === "failed"
           ? "failed"
-          : "active");
+          : staleState.staleActive
+            ? "active_stale"
+            : "active");
 
   const derivedStatuses = derivePhaseStatuses(runState, checkpoints, finalOutcome);
   const artifactCompleteness = deriveArtifactCompleteness(runDir, runState, options);
@@ -799,7 +857,10 @@ export function writeRunSummary(
     startedAt: runState.startedAt,
     updatedAt,
     ...(options.endedAt ? { endedAt: options.endedAt } : {}),
+    instrumentationKind: options.instrumentationKind ?? previousSummary?.instrumentationKind ?? "native",
     runStatus: runState.status,
+    ...(runState.sourceStatus ? { sourceRunStatus: runState.sourceStatus } : {}),
+    ...(runState.normalizedFromLegacy ? { legacyNormalized: true } : {}),
     phase: runState.phase,
     round: runState.round,
     plannerStatus: options.plannerStatus ?? derivedStatuses.plannerStatus,
@@ -807,11 +868,12 @@ export function writeRunSummary(
     adversaryStatus: options.adversaryStatus ?? derivedStatuses.adversaryStatus,
     evaluatorStatus: options.evaluatorStatus ?? derivedStatuses.evaluatorStatus,
     finalOutcome,
-    failureDomain: options.failureDomain ?? (runState.status === "completed" ? "none" : runState.status === "cancelled" ? "user" : runState.status === "failed" ? "unknown" : "none"),
+    failureDomain: options.failureDomain ?? (runState.status === "completed" ? "none" : runState.status === "cancelled" ? "user" : runState.status === "failed" ? "unknown" : staleState.staleActive ? "harness" : "none"),
     ...(options.failureCode ? { failureCode: options.failureCode } : {}),
     ...(options.failureCodes && options.failureCodes.length > 0 ? { failureCodes: options.failureCodes } : {}),
     ...(historicalFailureCodes.length > 0 ? { historicalFailureCodes } : {}),
-    summary: options.summary ?? latestCheckpoint?.summary ?? `Harness run is ${runState.status}.`,
+    ...(staleState.staleActive ? { staleActive: true, staleMinutes: staleState.staleMinutes, staleThresholdMinutes: staleState.staleThresholdMinutes } : {}),
+    summary: options.summary ?? latestCheckpoint?.summary ?? (staleState.staleActive ? `Harness run appears stale (${staleState.staleMinutes}min since last activity).` : `Harness run is ${runState.status}.`),
     metrics: {
       elapsedSeconds,
       checkpointCount: checkpoints.length,
@@ -1072,14 +1134,15 @@ export function listAllRunSummaries(runsDir: string): RunSummary[] {
   for (const d of dirs) {
     try {
       const summary = readRunSummary(runsDir, d);
-      if (summary) {
+      const runState = readRunState(runsDir, d);
+      if (!runState) continue;
+      if (summary && summary.instrumentationKind) {
         results.push(summary);
         continue;
       }
-      const runState = readRunState(runsDir, d);
-      if (runState) {
-        results.push(writeRunSummary(runsDir, d, runState));
-      }
+      results.push(writeRunSummary(runsDir, d, runState, {
+        instrumentationKind: summary?.instrumentationKind ?? "backfilled",
+      }));
     } catch {
       continue;
     }
