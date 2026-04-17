@@ -7,7 +7,7 @@ const STALE_RUN_TIMEOUT_MINUTES = 120;
 const SUBAGENT_STALE_TIMEOUT_MINUTES = 30;
 
 function parseArgs(argv) {
-  const args = { json: false, backfill: true };
+  const args = { json: false, backfill: true, force: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--json') {
@@ -18,6 +18,8 @@ function parseArgs(argv) {
       args.out = argv[++i];
     } else if (arg === '--no-backfill') {
       args.backfill = false;
+    } else if (arg === '--force') {
+      args.force = true;
     }
   }
   return args;
@@ -162,10 +164,25 @@ function deriveStaleState(runState, checkpoints) {
   return { staleActive, staleMinutes, staleThresholdMinutes };
 }
 
+function resolvePlanArtifactPath(runDir, runState, summaryHints = {}) {
+  const candidates = [
+    summaryHints.planPath,
+    runState.planPath,
+    path.join(runDir, 'plan.md'),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  return runState.planPath || path.join(runDir, 'plan.md');
+}
+
 function deriveArtifactCompleteness(runDir, runState, summaryHints = {}) {
+  const resolvedPlanPath = resolvePlanArtifactPath(runDir, runState, summaryHints);
   const required = [
     { name: 'run_state', path: path.join(runDir, 'run-state.json'), required: true, exists: fs.existsSync(path.join(runDir, 'run-state.json')) },
-    { name: 'plan', path: runState.planPath, required: true, exists: !!runState.planPath && fs.existsSync(runState.planPath) },
+    { name: 'plan', path: resolvedPlanPath, required: true, exists: !!resolvedPlanPath && fs.existsSync(resolvedPlanPath) },
     { name: 'contract', path: path.join(runDir, 'contract.json'), required: true, exists: fs.existsSync(path.join(runDir, 'contract.json')) },
     { name: 'run_summary', path: path.join(runDir, 'run-summary.json'), required: true, exists: true },
   ];
@@ -234,7 +251,7 @@ function normalizeRunState(rawState) {
   };
 }
 
-function needsBackfill(existingSummary, runState) {
+function needsBackfill(existingSummary, runDir, runState) {
   if (!existingSummary) return true;
   if (!existingSummary.instrumentationKind) return true;
   if (existingSummary.runStatus === 'delivered') return true;
@@ -242,6 +259,18 @@ function needsBackfill(existingSummary, runState) {
   if (existingSummary.sourceRunStatus !== runState.sourceStatus) return true;
   if (runState.status === 'active' && existingSummary.staleActive === undefined) return true;
   if (!existingSummary.dataQuality) return true;
+
+  const resolvedPlanPath = resolvePlanArtifactPath(runDir, runState, existingSummary?.artifacts ?? {});
+  if (existingSummary?.artifacts?.planPath !== resolvedPlanPath) return true;
+
+  const expectedArtifactCompleteness = deriveArtifactCompleteness(runDir, runState, { ...(existingSummary?.artifacts ?? {}), planPath: resolvedPlanPath });
+  const existingMissingRequired = JSON.stringify(existingSummary?.artifactCompleteness?.missingRequired ?? []);
+  const expectedMissingRequired = JSON.stringify(expectedArtifactCompleteness.missingRequired ?? []);
+  const existingMissingOptional = JSON.stringify(existingSummary?.artifactCompleteness?.missingOptional ?? []);
+  const expectedMissingOptional = JSON.stringify(expectedArtifactCompleteness.missingOptional ?? []);
+  if (existingMissingRequired !== expectedMissingRequired) return true;
+  if (existingMissingOptional !== expectedMissingOptional) return true;
+
   return false;
 }
 
@@ -337,7 +366,8 @@ function backfillSummary(runId, runDir, rawState, existingSummary) {
           ? 'active_stale'
           : 'active';
   const phaseStatuses = derivePhaseStatuses(runState, checkpoints, finalOutcome);
-  const artifactCompleteness = deriveArtifactCompleteness(runDir, runState, existingSummary?.artifacts ?? {});
+  const resolvedPlanPath = resolvePlanArtifactPath(runDir, runState, existingSummary?.artifacts ?? {});
+  const artifactCompleteness = deriveArtifactCompleteness(runDir, runState, { ...(existingSummary?.artifacts ?? {}), planPath: resolvedPlanPath });
   const instrumentationKind = existingSummary?.instrumentationKind ?? 'backfilled';
   const dataQuality = deriveDataQuality(instrumentationKind, artifactCompleteness, runState);
   const inferredFailure = inferBackfilledFailure(runState, artifactCompleteness, staleState, lastCheckpoint, existingSummary);
@@ -397,7 +427,7 @@ function backfillSummary(runId, runDir, rawState, existingSummary) {
       runDir,
       runStatePath: path.join(runDir, 'run-state.json'),
       checkpointsPath: path.join(runDir, 'checkpoints.jsonl'),
-      planPath: runState.planPath,
+      planPath: resolvedPlanPath,
       contractPath: path.join(runDir, 'contract.json'),
       progressPath: path.join(runDir, 'progress.md'),
       deliveryPath: path.join(runDir, 'delivery.json'),
@@ -419,7 +449,7 @@ function backfillSummary(runId, runDir, rawState, existingSummary) {
   };
 }
 
-function listSummaries(runsDir, { backfill }) {
+function listSummaries(runsDir, { backfill, force = false }) {
   if (!fs.existsSync(runsDir)) return { summaries: [], metadata: { totalDirs: 0, backfilledRuns: 0, normalizedStatuses: {}, staleActives: 0 } };
   const runDirs = fs.readdirSync(runsDir)
     .map((entry) => path.join(runsDir, entry))
@@ -442,7 +472,7 @@ function listSummaries(runsDir, { backfill }) {
       normalizedStatuses.set(runState.normalizationKey, (normalizedStatuses.get(runState.normalizationKey) ?? 0) + 1);
     }
     const existingSummary = readJson(path.join(runDir, 'run-summary.json'));
-    const shouldBackfill = needsBackfill(existingSummary, runState);
+    const shouldBackfill = force || needsBackfill(existingSummary, runDir, runState);
     const summary = shouldBackfill ? backfillSummary(runId, runDir, rawState, existingSummary) : existingSummary;
 
     if (shouldBackfill && backfill) {
@@ -663,7 +693,7 @@ function renderText(report) {
 
 const args = parseArgs(process.argv.slice(2));
 const runsDir = path.resolve(args.runsDir ?? defaultRunsDir());
-const { summaries, metadata } = listSummaries(runsDir, { backfill: args.backfill });
+const { summaries, metadata } = listSummaries(runsDir, { backfill: args.backfill, force: args.force });
 const report = buildReport(summaries, metadata);
 report.runsDir = runsDir;
 

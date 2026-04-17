@@ -269,6 +269,38 @@ All criteria verified.
     }, null, 2));
     fs.writeFileSync(path.join(staleRunDir, "contract.json"), JSON.stringify([], null, 2));
 
+    const missingPlanRunId = "missing-plan-run";
+    const missingPlanRunDir = path.join(runsDir, missingPlanRunId);
+    fs.mkdirSync(missingPlanRunDir, { recursive: true });
+    fs.writeFileSync(path.join(missingPlanRunDir, "run-state.json"), JSON.stringify({
+      runId: missingPlanRunId,
+      planPath: path.join(planDir, "deleted-plan.md"),
+      taskDescription: "Missing plan run",
+      startedAt: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
+      phase: "plan",
+      round: 1,
+      checkpoints: [],
+      status: "cancelled",
+    }, null, 2));
+    fs.writeFileSync(path.join(missingPlanRunDir, "contract.md"), "# Contract\n\n- [ ] Recovered from contract\n");
+
+    const missingCheckpointRunId = "missing-checkpoints-run";
+    const missingCheckpointRunDir = path.join(runsDir, missingCheckpointRunId);
+    fs.mkdirSync(missingCheckpointRunDir, { recursive: true });
+    fs.writeFileSync(path.join(missingCheckpointRunDir, "run-state.json"), JSON.stringify({
+      runId: missingCheckpointRunId,
+      planPath,
+      taskDescription: "Missing checkpoints run",
+      startedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+      phase: "eval",
+      round: 2,
+      checkpoints: [],
+      status: "completed",
+      evalGrade: "PASS",
+    }, null, 2));
+    fs.writeFileSync(path.join(missingCheckpointRunDir, "contract.json"), JSON.stringify([{ id: "c001", description: "Done", status: "passed" }], null, 2));
+    fs.writeFileSync(path.join(missingCheckpointRunDir, "features.json"), JSON.stringify([{ id: "f001", description: "Done", status: "passed" }], null, 2));
+
     const raw = execFileSync(process.execPath, [
       path.join(process.cwd(), "scripts", "aggregate-run-summaries.mjs"),
       "--runsDir",
@@ -297,10 +329,17 @@ All criteria verified.
       "--json",
     ], { encoding: "utf8" });
     const repairReport = JSON.parse(repairRaw);
+    assert("Repair script repairs at least one plan", repairReport.plansRepaired >= 1);
     assert("Repair script repairs at least one contract", repairReport.contractsRepaired >= 1);
+    assert("Repair script repairs at least one checkpoint file", repairReport.checkpointsRepaired >= 1);
     assert("Repair script repairs at least one delivery", repairReport.deliveriesRepaired >= 1);
+    assert("Repair script closes stale runs", repairReport.staleRunsClosed >= 1);
+    assert("Repair script writes plan snapshot", fs.existsSync(path.join(missingPlanRunDir, "plan.md")));
+    assert("Repair script rewires run-state planPath", JSON.parse(fs.readFileSync(path.join(missingPlanRunDir, "run-state.json"), "utf8")).planPath === path.join(missingPlanRunDir, "plan.md"));
     assert("Repair script writes contract.json", fs.existsSync(path.join(legacyRunDir, "contract.json")));
+    assert("Repair script writes synthetic checkpoints", fs.existsSync(path.join(missingCheckpointRunDir, "checkpoints.jsonl")));
     assert("Repair script writes delivery.json", fs.existsSync(path.join(legacyRunDir, "delivery.json")));
+    assert("Repair script marks stale run failed", JSON.parse(fs.readFileSync(path.join(staleRunDir, "run-state.json"), "utf8")).status === "failed");
   }
 
   // ─── Progress Bar Tests ───
